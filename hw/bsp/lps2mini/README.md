@@ -31,7 +31,7 @@ $
 ```
 newt target create lps2mini_boot
 newt target set lps2mini_boot app=@apache-mynewt-core/apps/boot
-newt target set lps2mini_boot bsp=@mynewt-dw1000-core/hw/bsp/lps2mini
+newt target set lps2mini_boot bsp=@loligo-mynewt/hw/bsp/lps2mini
 newt target set lps2mini_boot build_profile=optimized 
 newt build lps2mini_boot
 newt create-image lps2mini_boot 1.0.0
@@ -42,7 +42,7 @@ newt load lps2mini_boot
 ```
 newt target create lps2mini_tag
 newt target set lps2mini_tag app=apps/twr_tag
-newt target set lps2mini_tag bsp=@mynewt-dw1000-core/hw/bsp/lps2mini
+newt target set lps2mini_tag bsp=@loligo-mynewt/hw/bsp/lps2mini
 newt target set lps2mini_tag build_profile=debug
 newt run lps2mini_tag 0
 ```
@@ -51,7 +51,7 @@ newt run lps2mini_tag 0
 ```
 newt target create lps2mini_node
 newt target set lps2mini_node app=apps/twr_node
-newt target set lps2mini_node bsp=@mynewt-dw1000-core/hw/bsp/lps2mini
+newt target set lps2mini_node bsp=@loligo-mynewt/hw/bsp/lps2mini
 newt target set lps2mini_node build_profile=debug
 newt run lps2mini_node 0
 ```
