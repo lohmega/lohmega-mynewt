@@ -23,6 +23,7 @@
 
 #include "defs/error.h"
 #include "os/os.h"
+#include "os/os_mutex.h"
 #include "sysinit/sysinit.h"
 #include "hal/hal_i2c.h"
 #include "sensor/sensor.h"
@@ -74,9 +75,11 @@ static const struct sensor_driver g_lsm6dsl_sensor_driver = {
  * @return 0 on success, non-zero error on failure.
  */
 int
-lsm6dsl_write8(struct sensor_itf *itf, uint8_t reg, uint32_t value)
+lsm6dsl_write8(struct lsm6dsl *dev, uint8_t reg, uint32_t value)
 {
     int rc;
+    os_error_t err = 0;
+    struct sensor_itf *itf = &dev->sensor.s_itf;
     uint8_t payload[2] = { reg, value & 0xFF };
 
     struct hal_i2c_master_data data_struct = {
@@ -84,6 +87,16 @@ lsm6dsl_write8(struct sensor_itf *itf, uint8_t reg, uint32_t value)
         .len = 2,
         .buffer = payload
     };
+
+    if (dev->i2c_mutex)
+    {
+        err = os_mutex_pend(dev->i2c_mutex, OS_WAIT_FOREVER);
+        if (err != OS_OK)
+        {
+            LSM6DSL_ERR("Mutex error=%d\n", err);
+            return err;
+        }
+    }
 
     rc = hal_i2c_master_write(itf->si_num, &data_struct,
                               OS_TICKS_PER_SEC / 10, 1);
@@ -94,6 +107,12 @@ lsm6dsl_write8(struct sensor_itf *itf, uint8_t reg, uint32_t value)
         STATS_INC(g_lsm6dslstats, read_errors);
     }
 
+    if (dev->i2c_mutex)
+    {
+        err = os_mutex_release(dev->i2c_mutex);
+        assert(err == OS_OK);
+    }
+    
     return rc;
 }
 
@@ -107,9 +126,11 @@ lsm6dsl_write8(struct sensor_itf *itf, uint8_t reg, uint32_t value)
  * @return 0 on success, non-zero error on failure.
  */
 int
-lsm6dsl_read8(struct sensor_itf *itf, uint8_t reg, uint8_t *value)
+lsm6dsl_read8(struct lsm6dsl *dev, uint8_t reg, uint8_t *value)
 {
     int rc;
+    os_error_t err = 0;
+    struct sensor_itf *itf = &dev->sensor.s_itf;
 
     struct hal_i2c_master_data data_struct = {
         .address = itf->si_addr,
@@ -117,13 +138,23 @@ lsm6dsl_read8(struct sensor_itf *itf, uint8_t reg, uint8_t *value)
         .buffer = &reg
     };
 
+    if (dev->i2c_mutex)
+    {
+        err = os_mutex_pend(dev->i2c_mutex, OS_WAIT_FOREVER);
+        if (err != OS_OK)
+        {
+            LSM6DSL_ERR("Mutex error=%d\n", err);
+            return err;
+        }
+    }
+
     /* Register write */
     rc = hal_i2c_master_write(itf->si_num, &data_struct,
                               OS_TICKS_PER_SEC / 10, 0);
     if (rc) {
         LSM6DSL_ERR("I2C access failed at address 0x%02X\n", itf->si_addr);
         STATS_INC(g_lsm6dslstats, write_errors);
-        return rc;
+        goto exit;
     }
 
     /* Read one byte back */
@@ -135,6 +166,14 @@ lsm6dsl_read8(struct sensor_itf *itf, uint8_t reg, uint8_t *value)
          LSM6DSL_ERR("Failed to read from 0x%02X:0x%02X\n", itf->si_addr, reg);
          STATS_INC(g_lsm6dslstats, read_errors);
     }
+
+exit:
+    if (dev->i2c_mutex)
+    {
+        err = os_mutex_release(dev->i2c_mutex);
+        assert(err == OS_OK);
+    }
+
     return rc;
 }
 
@@ -149,15 +188,27 @@ lsm6dsl_read8(struct sensor_itf *itf, uint8_t reg, uint8_t *value)
  * @return 0 on success, non-zero error on failure.
  */
 int
-lsm6dsl_read_bytes(struct sensor_itf *itf, uint8_t reg, uint8_t *buffer, uint32_t length)
+lsm6dsl_read_bytes(struct lsm6dsl *dev, uint8_t reg, uint8_t *buffer, uint32_t length)
 {
     int rc;
-
+    os_error_t err = 0;
+    struct sensor_itf *itf = &dev->sensor.s_itf;
+ 
     struct hal_i2c_master_data data_struct = {
         .address = itf->si_addr,
         .len = 1,
         .buffer = &reg
     };
+
+    if (dev->i2c_mutex)
+    {
+        err = os_mutex_pend(dev->i2c_mutex, OS_WAIT_FOREVER);
+        if (err != OS_OK)
+        {
+            LSM6DSL_ERR("Mutex error=%d\n", err);
+            return err;
+        }
+    }
 
     /* Register write */
     rc = hal_i2c_master_write(itf->si_num, &data_struct,
@@ -165,7 +216,7 @@ lsm6dsl_read_bytes(struct sensor_itf *itf, uint8_t reg, uint8_t *buffer, uint32_
     if (rc) {
         LSM6DSL_ERR("I2C access failed at address 0x%02X\n", itf->si_addr);
         STATS_INC(g_lsm6dslstats, write_errors);
-        return rc;
+        goto exit;
     }
 
     /* Read n bytes back */
@@ -178,48 +229,56 @@ lsm6dsl_read_bytes(struct sensor_itf *itf, uint8_t reg, uint8_t *buffer, uint32_
          LSM6DSL_ERR("Failed to read from 0x%02X:0x%02X\n", itf->si_addr, reg);
          STATS_INC(g_lsm6dslstats, read_errors);
     }
+
+exit:
+    if (dev->i2c_mutex)
+    {
+        err = os_mutex_release(dev->i2c_mutex);
+        assert(err == OS_OK);
+    }
+
     return rc;
 }
 
 int
-lsm6dsl_reset(struct sensor_itf *itf)
+lsm6dsl_reset(struct lsm6dsl *dev)
 {
     uint8_t temp;
-    lsm6dsl_read8(itf, LSM6DSL_CTRL3_C, &temp);
+    lsm6dsl_read8(dev, LSM6DSL_CTRL3_C, &temp);
     temp |= 0x01;
-    int rc = lsm6dsl_write8(itf, LSM6DSL_CTRL3_C, temp);
+    int rc = lsm6dsl_write8(dev, LSM6DSL_CTRL3_C, temp);
     os_cputime_delay_usecs(10000);  // Wait for all registers to reset 
     return rc;
 }
 
 int
-lsm6dsl_sleep(struct sensor_itf *itf)
+lsm6dsl_sleep(struct lsm6dsl *dev)
 {
     int rc;
 
-    rc = lsm6dsl_write8(itf, LSM6DSL_CTRL1_XL, LSM6DSL_ACCEL_RATE_POWER_DOWN); 
+    rc = lsm6dsl_write8(dev, LSM6DSL_CTRL1_XL, LSM6DSL_ACCEL_RATE_POWER_DOWN); 
     if (rc) {
         return rc;
     }
 
-    rc = lsm6dsl_write8(itf, LSM6DSL_CTRL2_G, LSM6DSL_GYRO_RATE_POWER_DOWN); 
+    rc = lsm6dsl_write8(dev, LSM6DSL_CTRL2_G, LSM6DSL_GYRO_RATE_POWER_DOWN); 
     return rc;
 }
 
 int
-lsm6dsl_set_gyro_rate_range(struct sensor_itf *itf, enum lsm6dsl_gyro_rate rate , enum lsm6dsl_gyro_range range)
+lsm6dsl_set_gyro_rate_range(struct lsm6dsl *dev, enum lsm6dsl_gyro_rate rate , enum lsm6dsl_gyro_range range)
 {
     uint8_t val = (uint8_t)range | (uint8_t)rate; 
-    return lsm6dsl_write8(itf, LSM6DSL_CTRL2_G, val);
+    return lsm6dsl_write8(dev, LSM6DSL_CTRL2_G, val);
 }
 
 int
-lsm6dsl_get_gyro_rate_range(struct sensor_itf *itf, enum lsm6dsl_gyro_rate *rate, enum lsm6dsl_gyro_range *range)
+lsm6dsl_get_gyro_rate_range(struct lsm6dsl *dev, enum lsm6dsl_gyro_rate *rate, enum lsm6dsl_gyro_range *range)
 {
     uint8_t reg;
     int rc;
 
-    rc = lsm6dsl_read8(itf, LSM6DSL_CTRL2_G, &reg);
+    rc = lsm6dsl_read8(dev, LSM6DSL_CTRL2_G, &reg);
     if (rc) {
         return rc;
     }
@@ -231,19 +290,19 @@ lsm6dsl_get_gyro_rate_range(struct sensor_itf *itf, enum lsm6dsl_gyro_rate *rate
 }
 
 int
-lsm6dsl_set_accel_rate_range(struct sensor_itf *itf, enum lsm6dsl_accel_rate rate , enum lsm6dsl_accel_range range)
+lsm6dsl_set_accel_rate_range(struct lsm6dsl *dev, enum lsm6dsl_accel_rate rate , enum lsm6dsl_accel_range range)
 {
     uint8_t val = (uint8_t)range | (uint8_t)rate; 
-    return lsm6dsl_write8(itf, LSM6DSL_CTRL1_XL, val);
+    return lsm6dsl_write8(dev, LSM6DSL_CTRL1_XL, val);
 }
 
 int
-lsm6dsl_get_accel_rate_range(struct sensor_itf *itf, enum lsm6dsl_accel_rate *rate, enum lsm6dsl_accel_range *range)
+lsm6dsl_get_accel_rate_range(struct lsm6dsl *dev, enum lsm6dsl_accel_rate *rate, enum lsm6dsl_accel_range *range)
 {
     uint8_t reg;
     int rc;
 
-    rc = lsm6dsl_read8(itf, LSM6DSL_CTRL1_XL, &reg);
+    rc = lsm6dsl_read8(dev, LSM6DSL_CTRL1_XL, &reg);
     if (rc) {
         return rc;
     }
@@ -255,27 +314,27 @@ lsm6dsl_get_accel_rate_range(struct sensor_itf *itf, enum lsm6dsl_accel_rate *ra
 }
 
 int
-lsm6dsl_enable_interrupt(struct sensor_itf *itf, uint8_t enable)
+lsm6dsl_enable_interrupt(struct lsm6dsl *dev, uint8_t enable)
 {
     int rc;
-    rc = lsm6dsl_write8(itf, LSM6DSL_DRDY_PULSE_CFG, 0x80);
+    rc = lsm6dsl_write8(dev, LSM6DSL_DRDY_PULSE_CFG, 0x80);
     if (rc) {
         return rc;
     }
-    return lsm6dsl_write8(itf, LSM6DSL_INT1_CTRL, (enable)? 0x03 : 0x00);
+    return lsm6dsl_write8(dev, LSM6DSL_INT1_CTRL, (enable)? 0x03 : 0x00);
 }
 
 
 int
-lsm6dsl_set_lpf(struct sensor_itf *itf, uint8_t cfg)
+lsm6dsl_set_lpf(struct lsm6dsl *dev, uint8_t cfg)
 {
-    return lsm6dsl_write8(itf, LSM6DSL_CTRL8_XL, cfg);
+    return lsm6dsl_write8(dev, LSM6DSL_CTRL8_XL, cfg);
 }
 
 int
-lsm6dsl_get_lpf(struct sensor_itf *itf, uint8_t *cfg)
+lsm6dsl_get_lpf(struct lsm6dsl *dev, uint8_t *cfg)
 {
-    return lsm6dsl_read8(itf, LSM6DSL_CTRL8_XL, cfg);
+    return lsm6dsl_read8(dev, LSM6DSL_CTRL8_XL, cfg);
 }
 
 
@@ -341,12 +400,9 @@ int
 lsm6dsl_config(struct lsm6dsl *lsm, struct lsm6dsl_cfg *cfg)
 {
     int rc;
-    struct sensor_itf *itf;
-
-    itf = SENSOR_GET_ITF(&(lsm->sensor));
 
     uint8_t val;
-    rc = lsm6dsl_read8(itf, LSM6DSL_WHO_AM_I, &val);
+    rc = lsm6dsl_read8(lsm, LSM6DSL_WHO_AM_I, &val);
     if (rc) {
         return rc;
     }
@@ -354,37 +410,37 @@ lsm6dsl_config(struct lsm6dsl *lsm, struct lsm6dsl_cfg *cfg)
         return SYS_EINVAL;
     }
 
-    rc = lsm6dsl_set_lpf(itf, cfg->lpf_cfg);
+    rc = lsm6dsl_set_lpf(lsm, cfg->lpf_cfg);
     if (rc) {
         return rc;
     }
     lsm->cfg.lpf_cfg = cfg->lpf_cfg;
 
 
-    rc = lsm6dsl_set_accel_rate_range(itf, cfg->accel_rate, cfg->accel_range);
+    rc = lsm6dsl_set_accel_rate_range(lsm, cfg->accel_rate, cfg->accel_range);
     if (rc) {
         return rc;
     }
-    lsm6dsl_get_accel_rate_range(itf, &(lsm->cfg.accel_rate), &(lsm->cfg.accel_range));
+    lsm6dsl_get_accel_rate_range(lsm, &(lsm->cfg.accel_rate), &(lsm->cfg.accel_range));
 
-    rc = lsm6dsl_set_gyro_rate_range(itf, cfg->gyro_rate, cfg->gyro_range);
+    rc = lsm6dsl_set_gyro_rate_range(lsm, cfg->gyro_rate, cfg->gyro_range);
     if (rc) {
         return rc;
     }
-    lsm6dsl_get_gyro_rate_range(itf, &(lsm->cfg.gyro_rate), &(lsm->cfg.gyro_range));
+    lsm6dsl_get_gyro_rate_range(lsm, &(lsm->cfg.gyro_rate), &(lsm->cfg.gyro_range));
 
-    rc = lsm6dsl_read8(itf, LSM6DSL_CTRL3_C, &val);
+    rc = lsm6dsl_read8(lsm, LSM6DSL_CTRL3_C, &val);
     if (rc) {
         return rc;
     }
 
     /* enable block update (bit 6 = 1), auto-increment registers (bit 2 = 1) */
-    rc = lsm6dsl_write8(itf, LSM6DSL_CTRL3_C, val| 0x40 | 0x04); 
+    rc = lsm6dsl_write8(lsm, LSM6DSL_CTRL3_C, val| 0x40 | 0x04); 
     if (rc) {
         return rc;
     }
     
-    rc = lsm6dsl_enable_interrupt(itf, cfg->int_enable);
+    rc = lsm6dsl_enable_interrupt(lsm, cfg->int_enable);
     if (rc) {
         return rc;
     }
@@ -409,7 +465,6 @@ lsm6dsl_sensor_read(struct sensor *sensor, sensor_type_t type,
     int16_t x, y, z;
     uint8_t payload[14];
     float lsb;
-    struct sensor_itf *itf;
     struct lsm6dsl *lsm;
     union {
         struct sensor_accel_data sad;
@@ -424,11 +479,10 @@ lsm6dsl_sensor_read(struct sensor *sensor, sensor_type_t type,
         return SYS_EINVAL;
     }
 
-    itf = SENSOR_GET_ITF(sensor);
     lsm = (struct lsm6dsl *) SENSOR_GET_DEVICE(sensor);
 
     if (type & (SENSOR_TYPE_ACCELEROMETER|SENSOR_TYPE_GYROSCOPE)) {
-        rc = lsm6dsl_read_bytes(itf, LSM6DSL_OUT_TEMP_L, payload, 14);
+        rc = lsm6dsl_read_bytes(lsm, LSM6DSL_OUT_TEMP_L, payload, 14);
         if (rc) {
             return rc;
         }

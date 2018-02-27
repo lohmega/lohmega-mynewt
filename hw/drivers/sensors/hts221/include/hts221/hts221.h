@@ -51,14 +51,15 @@ struct hts221_cfg {
 struct hts221 {
     struct os_dev dev;
     struct sensor sensor;
+    struct os_mutex *i2c_mutex;
     struct hts221_cfg cfg;
     os_time_t last_read_time;
     hts221_cal_t calibration;
 };
 
-int hts221_start_conv(struct sensor_itf *itf);
+int hts221_start_conv(struct hts221 *dev);
     
-int hts221_enable_interrupt(struct sensor_itf *itf, uint8_t enable);
+int hts221_enable_interrupt(struct hts221 *dev, uint8_t enable);
 
 int hts221_init(struct os_dev *, void *);
 int hts221_config(struct hts221 *, struct hts221_cfg *);

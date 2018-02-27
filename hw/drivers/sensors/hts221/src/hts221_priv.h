@@ -53,9 +53,9 @@ enum hts221_registers {
 #define HTS221_CTRL_REG2_OS_MASK 0x01
 #define HTS221_CTRL_REG3_DRDY_EN_MASK 0x04
     
-int hts221_write8(struct sensor_itf *itf, uint8_t reg, uint32_t value);
-int hts221_read8(struct sensor_itf *itf, uint8_t reg, uint8_t *value);
-int hts221_read_calibration(struct sensor_itf *itf, hts221_cal_t *cal);
+int hts221_write8(struct hts221 *dev, uint8_t reg, uint32_t value);
+int hts221_read8(struct hts221 *dev, uint8_t reg, uint8_t *value);
+int hts221_read_calibration(struct hts221 *dev, hts221_cal_t *cal);
     
 #ifdef __cplusplus
 }
