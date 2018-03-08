@@ -342,6 +342,23 @@ lis2mdl_get_lpf(struct lis2mdl *dev, uint8_t *cfg)
     return lis2mdl_read8(dev, LIS2MDL_CFG_REG_B, cfg);
 }
 
+static int lis2mdl_suspend(struct os_dev *dev, os_time_t suspend_t , int force)
+{
+    struct lis2mdl *lis;
+    lis = (struct lis2mdl *) dev;
+    lis2mdl_sleep(lis);
+    LIS2MDL_INFO("Lis suspend\n");
+    return OS_OK;
+}
+
+static int lis2mdl_resume(struct os_dev *dev)
+{
+    struct lis2mdl *lis = (struct lis2mdl*)dev;
+    lis2mdl_reset(lis);
+    
+    LIS2MDL_INFO("Lis resume\n");
+    return lis2mdl_config(lis, &lis->cfg);
+}
 
 /**
  * Expects to be called back through os_dev_create().
@@ -376,6 +393,7 @@ lis2mdl_init(struct os_dev *dev, void *arg)
         STATS_SIZE_INIT_PARMS(g_lis2mdlstats, STATS_SIZE_32),
         STATS_NAME_INIT_PARMS(lis2mdl_stat_section));
     SYSINIT_PANIC_ASSERT(rc == 0);
+
     /* Register the entry with the stats registry */
     rc = stats_register(dev->od_name, STATS_HDR(g_lis2mdlstats));
     SYSINIT_PANIC_ASSERT(rc == 0);
@@ -397,6 +415,9 @@ lis2mdl_init(struct os_dev *dev, void *arg)
         return rc;
     }
 
+    dev->od_handlers.od_suspend = lis2mdl_suspend;
+    dev->od_handlers.od_resume = lis2mdl_resume;
+    
     return sensor_mgr_register(sensor);
 }
 

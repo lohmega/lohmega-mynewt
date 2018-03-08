@@ -265,6 +265,27 @@ lsm6dsl_sleep(struct lsm6dsl *dev)
     return rc;
 }
 
+static int
+lsm6dsl_suspend(struct os_dev *dev, os_time_t suspend_t , int force)
+{
+    struct lsm6dsl *lsm;
+    lsm = (struct lsm6dsl *) dev;
+    lsm6dsl_sleep(lsm);
+    LSM6DSL_INFO("lsm suspend\n");
+    return OS_OK;
+}
+
+static int
+lsm6dsl_resume(struct os_dev *dev)
+{
+    struct lsm6dsl *lsm = (struct lsm6dsl*)dev;
+    lsm6dsl_reset(lsm);
+    
+    LSM6DSL_INFO("lsm resumed\n");
+    return lsm6dsl_config(lsm, &lsm->cfg);
+}
+
+
 int
 lsm6dsl_set_gyro_rate_range(struct lsm6dsl *dev, enum lsm6dsl_gyro_rate rate , enum lsm6dsl_gyro_range range)
 {
@@ -393,6 +414,9 @@ lsm6dsl_init(struct os_dev *dev, void *arg)
         return rc;
     }
 
+    dev->od_handlers.od_suspend = lsm6dsl_suspend;
+    dev->od_handlers.od_resume = lsm6dsl_resume;
+    
     return sensor_mgr_register(sensor);
 }
 
