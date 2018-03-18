@@ -481,11 +481,13 @@ lps22hb_sensor_read(struct sensor *sensor, sensor_type_t type,
         /* Get a new sample */
         lps22hb_oneshot(lhb);
         reg = LPS22HB_REG2_ONESHOT;
-        while (reg & LPS22HB_REG2_ONESHOT)
+        timeout = 100;
+        while (reg & LPS22HB_REG2_ONESHOT && --timeout)
         {
             os_cputime_delay_usecs(1000);
             lps22hb_read8(lhb, LPS22HB_CTRL_REG2, &reg);
         }
+        if (timeout==0) return OS_TIMEOUT;
     }
 
     if (type & SENSOR_TYPE_PRESSURE) {
