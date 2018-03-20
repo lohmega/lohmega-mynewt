@@ -452,6 +452,52 @@ lps22hb_config(struct lps22hb *lhb, struct lps22hb_cfg *cfg)
     return 0;
 }
 
+int
+lps22hb_read_raw(struct lps22hb *dev, uint32_t *pressure)
+{
+    int rc, timeout;
+    uint8_t payload[3], reg;
+
+    /* If sensor is in ONE_SHOT mode, activate it now */
+    if (dev->cfg.output_rate == LPS22HB_OUTPUT_RATE_ONESHOT)
+    {
+        /* Get a new sample */
+        rc = lps22hb_oneshot(dev);
+        reg = LPS22HB_REG2_ONESHOT;
+        timeout = 100;
+        while (reg & LPS22HB_REG2_ONESHOT && --timeout)
+        {
+            os_cputime_delay_usecs(1000);
+            lps22hb_read8(dev, LPS22HB_CTRL_REG2, &reg);
+        }
+        if (timeout==0) return OS_TIMEOUT;
+    }
+
+    if (dev->cfg.output_rate == LPS22HB_OUTPUT_RATE_ONESHOT)
+    {
+        rc  = lps22hb_read8(dev, LPS22HB_PRESS_OUT_XL, payload);
+        rc |= lps22hb_read8(dev, LPS22HB_PRESS_OUT_L, payload+1);
+        rc |= lps22hb_read8(dev, LPS22HB_PRESS_OUT_H, payload+2);
+    }
+    else
+    {
+        // bit 7 must be one to read multiple bytes
+        rc = lps22hb_read_bytes(dev, (LPS22HB_PRESS_OUT_XL | 0x80), payload, 3);
+    }
+
+    /* Check if reading sensor failed */
+    if (rc) {
+        return rc;
+    }
+    
+    if (pressure)
+    {
+        *pressure = ((uint32_t)payload[2]<<16) | ((uint32_t)payload[1]<<8) | payload[0];
+    }
+    
+    return 0;
+}
+
 static int
 lps22hb_sensor_read(struct sensor *sensor, sensor_type_t type,
         sensor_data_func_t data_func, void *data_arg, uint32_t timeout)

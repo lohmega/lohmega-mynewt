@@ -469,6 +469,29 @@ lis2mdl_config(struct lis2mdl *lis, struct lis2mdl_cfg *cfg)
     return 0;
 }
 
+int
+lis2mdl_read_raw(struct lis2mdl *dev, int16_t val[])
+{
+    int rc;
+    int16_t x, y, z;
+    uint8_t payload[8];
+    rc = lis2mdl_read_bytes(dev, LIS2MDL_OUTX_L_REG, payload, 8);
+    if (rc) {
+        return rc;
+    }
+    x = (((int16_t)payload[1] << 8) | payload[0]);
+    y = (((int16_t)payload[3] << 8) | payload[2]);
+    z = (((int16_t)payload[5] << 8) | payload[4]);
+
+    if (val)
+    {
+        val[0] = x;
+        val[1] = y;
+        val[2] = z;
+    }
+    return 0;
+}
+
 static int
 lis2mdl_sensor_read(struct sensor *sensor, sensor_type_t type,
         sensor_data_func_t data_func, void *data_arg, uint32_t timeout)

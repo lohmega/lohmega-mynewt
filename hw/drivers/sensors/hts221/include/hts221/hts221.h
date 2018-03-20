@@ -64,6 +64,8 @@ int hts221_enable_interrupt(struct hts221 *dev, uint8_t enable);
 int hts221_init(struct os_dev *, void *);
 int hts221_config(struct hts221 *, struct hts221_cfg *);
 
+int hts221_read_raw(struct hts221 *dev, int32_t *temp, uint16_t *rh);
+
 #ifdef __cplusplus
 }
 #endif

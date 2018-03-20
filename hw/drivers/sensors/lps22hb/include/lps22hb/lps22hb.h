@@ -73,6 +73,9 @@ int lps22hb_enable_interrupt(struct lps22hb *dev, uint8_t enable);
 int lps22hb_init(struct os_dev *, void *);
 int lps22hb_config(struct lps22hb *, struct lps22hb_cfg *);
 
+int lps22hb_read_raw(struct lps22hb *dev, uint32_t *pressure);
+
+    
 #ifdef __cplusplus
 }
 #endif

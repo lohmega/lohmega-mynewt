@@ -391,6 +391,45 @@ static int32_t hts221_calc_temperature(hts221_cal_t *cal, int32_t t_out)
     return (((kn*x*1000)/kd) + cal->T0_decC_x8*1000)/8;
 }
 
+int
+hts221_read_raw(struct hts221 *dev, int32_t *temp, uint16_t *rh)
+{
+    int rc;
+    uint8_t msb, lsb;
+    int16_t raw;
+    
+    rc = hts221_read8(dev, HTS221_TEMP_OUT_H, &msb);
+    rc = hts221_read8(dev, HTS221_TEMP_OUT_L, &lsb);
+    
+    if (rc) {
+        return rc;
+    }
+    raw = ((int16_t)msb<<8) | lsb;
+
+    /* Data in C*1000 instead of raw-raw because we need to use
+     * calibration data */
+    if (temp)
+    {
+        *temp = hts221_calc_temperature(&(dev->calibration), raw);
+    }
+
+    rc = hts221_read8(dev, HTS221_HUMIDITY_OUT_H, &msb);
+    rc = hts221_read8(dev, HTS221_HUMIDITY_OUT_L, &lsb);
+
+    if (rc) {
+        return rc;
+    }
+    raw = ((int16_t)msb<<8) | lsb;
+
+    /* Data in %rh*10 instead of raw-raw because we need to use
+     * calibration data */
+    if(rh)
+    {
+        *rh = hts221_calc_rh(&(dev->calibration), raw);
+    }
+        
+    return 0;
+}
 
 static int
 hts221_sensor_read(struct sensor *sensor, sensor_type_t type,

@@ -480,6 +480,39 @@ lsm6dsl_config(struct lsm6dsl *lsm, struct lsm6dsl_cfg *cfg)
     return 0;
 }
 
+int
+lsm6dsl_read_raw(struct lsm6dsl *dev, int16_t gyro[], int16_t acc[])
+{
+    int rc;
+    int16_t ax, ay, az, gx, gy, gz;
+    uint8_t payload[14];
+    rc = lsm6dsl_read_bytes(dev, LSM6DSL_OUT_TEMP_L, payload, 14);
+    if (rc) {
+        return rc;
+    }
+    gx = (int16_t)((payload[3] << 8) | payload[2]);
+    gy = (int16_t)((payload[5] << 8) | payload[4]);
+    gz = (int16_t)((payload[7] << 8) | payload[6]);
+    ax = (((int16_t)payload[9] << 8) | payload[8]);
+    ay = (((int16_t)payload[11] << 8) | payload[10]);
+    az = (((int16_t)payload[13] << 8) | payload[12]);
+
+    if (gyro)
+    {
+        gyro[0] = gx;
+        gyro[1] = gy;
+        gyro[2] = gz;
+    }
+    if (acc)
+    {
+        acc[0] = ax;
+        acc[1] = ay;
+        acc[2] = az;
+    }
+    return 0;
+}
+
+
 static int
 lsm6dsl_sensor_read(struct sensor *sensor, sensor_type_t type,
         sensor_data_func_t data_func, void *data_arg, uint32_t timeout)

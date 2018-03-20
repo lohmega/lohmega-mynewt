@@ -111,6 +111,8 @@ int lsm6dsl_enable_interrupt(struct lsm6dsl *dev, uint8_t enable);
 int lsm6dsl_init(struct os_dev *, void *);
 int lsm6dsl_config(struct lsm6dsl *, struct lsm6dsl_cfg *);
 
+int lsm6dsl_read_raw(struct lsm6dsl *dev, int16_t gyro[], int16_t acc[]);
+    
 #ifdef __cplusplus
 }
 #endif

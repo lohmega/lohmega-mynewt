@@ -67,6 +67,9 @@ int lis2mdl_enable_interrupt(struct lis2mdl *dev, uint8_t enable);
 int lis2mdl_init(struct os_dev *, void *);
 int lis2mdl_config(struct lis2mdl *, struct lis2mdl_cfg *);
 
+int lis2mdl_read_raw(struct lis2mdl *dev, int16_t val[]);
+
+    
 #ifdef __cplusplus
 }
 #endif
