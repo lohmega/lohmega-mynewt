@@ -33,22 +33,24 @@
 #include "hts221/hts221.h"
 #include "hts221_priv.h"
 #include "log/log.h"
-#include "stats/stats.h"
+#include <stats/stats.h>
 
-/* Define the stats section and records */
-STATS_SECT_START(hts221_stat_section)
+STATS_SECT_START(hts221_stats)
     STATS_SECT_ENTRY(read_errors)
     STATS_SECT_ENTRY(write_errors)
+    STATS_SECT_ENTRY(mutex_errors)
 STATS_SECT_END
 
-/* Define stat names for querying */
-STATS_NAME_START(hts221_stat_section)
-    STATS_NAME(hts221_stat_section, read_errors)
-    STATS_NAME(hts221_stat_section, write_errors)
-STATS_NAME_END(hts221_stat_section)
-
 /* Global variable used to hold stats data */
-STATS_SECT_DECL(hts221_stat_section) g_hts221stats;
+STATS_SECT_DECL(hts221_stats) g_hts221_stats;
+
+/* Define the stats section and records */
+STATS_NAME_START(hts221_stats)
+    STATS_NAME(hts221_stats, read_errors)
+    STATS_NAME(hts221_stats, write_errors)
+    STATS_NAME(hts221_stats, mutex_errors)
+STATS_NAME_END(hts221_stats)
+
 
 #define LOG_MODULE_HTS221    (221)
 #define HTS221_INFO(...)     LOG_INFO(&_log, LOG_MODULE_HTS221, __VA_ARGS__)
@@ -95,6 +97,7 @@ hts221_write8(struct hts221 *dev, uint8_t reg, uint32_t value)
         if (err != OS_OK)
         {
             HTS221_ERR("Mutex error=%d\n", err);
+            STATS_INC(g_hts221_stats, mutex_errors);
             return err;
         }
     }
@@ -105,7 +108,7 @@ hts221_write8(struct hts221 *dev, uint8_t reg, uint32_t value)
     if (rc) {
         HTS221_ERR("Failed to write to 0x%02X:0x%02X with value 0x%02X\n",
                        itf->si_addr, reg, value);
-        STATS_INC(g_hts221stats, read_errors);
+        STATS_INC(g_hts221_stats, write_errors);
     }
 
     if (dev->i2c_mutex)
@@ -145,6 +148,7 @@ hts221_read8(struct hts221 *dev, uint8_t reg, uint8_t *value)
         if (err != OS_OK)
         {
             HTS221_ERR("Mutex error=%d\n", err);
+            STATS_INC(g_hts221_stats, mutex_errors);
             return err;
         }
     }
@@ -154,7 +158,7 @@ hts221_read8(struct hts221 *dev, uint8_t reg, uint8_t *value)
                               OS_TICKS_PER_SEC / 10, 0);
     if (rc) {
         HTS221_ERR("I2C access failed at address 0x%02X\n", itf->si_addr);
-        STATS_INC(g_hts221stats, write_errors);
+        STATS_INC(g_hts221_stats, write_errors);
         goto exit;
     }
 
@@ -165,7 +169,7 @@ hts221_read8(struct hts221 *dev, uint8_t reg, uint8_t *value)
 
     if (rc) {
          HTS221_ERR("Failed to read from 0x%02X:0x%02X\n", itf->si_addr, reg);
-         STATS_INC(g_hts221stats, read_errors);
+         STATS_INC(g_hts221_stats, read_errors);
     }
 
 exit:
@@ -311,16 +315,6 @@ hts221_init(struct os_dev *dev, void *arg)
 
     sensor = &lhb->sensor;
 
-    /* Initialise the stats entry */
-    rc = stats_init(
-        STATS_HDR(g_hts221stats),
-        STATS_SIZE_INIT_PARMS(g_hts221stats, STATS_SIZE_32),
-        STATS_NAME_INIT_PARMS(hts221_stat_section));
-    SYSINIT_PANIC_ASSERT(rc == 0);
-    /* Register the entry with the stats registry */
-    rc = stats_register(dev->od_name, STATS_HDR(g_hts221stats));
-    SYSINIT_PANIC_ASSERT(rc == 0);
-
     rc = sensor_init(sensor, dev);
     if (rc) {
         return rc;
@@ -345,8 +339,14 @@ int
 hts221_config(struct hts221 *lhb, struct hts221_cfg *cfg)
 {
     int rc;
-
     uint8_t val;
+
+    /* Init stats */
+    rc = stats_init_and_reg(
+        STATS_HDR(g_hts221_stats), STATS_SIZE_INIT_PARMS(g_hts221_stats,
+        STATS_SIZE_32), STATS_NAME_INIT_PARMS(hts221_stats), "sen_hts221");
+    SYSINIT_PANIC_ASSERT(rc == 0);
+        
     rc = hts221_read8(lhb, HTS221_WHO_AM_I, &val);
     if (rc) {
         return rc;

@@ -32,22 +32,24 @@
 #include "lps22hb/lps22hb.h"
 #include "lps22hb_priv.h"
 #include "log/log.h"
-#include "stats/stats.h"
+#include <stats/stats.h>
 
-/* Define the stats section and records */
-STATS_SECT_START(lps22hb_stat_section)
+STATS_SECT_START(lps22hb_stats)
     STATS_SECT_ENTRY(read_errors)
     STATS_SECT_ENTRY(write_errors)
+    STATS_SECT_ENTRY(mutex_errors)
 STATS_SECT_END
 
-/* Define stat names for querying */
-STATS_NAME_START(lps22hb_stat_section)
-    STATS_NAME(lps22hb_stat_section, read_errors)
-    STATS_NAME(lps22hb_stat_section, write_errors)
-STATS_NAME_END(lps22hb_stat_section)
-
 /* Global variable used to hold stats data */
-STATS_SECT_DECL(lps22hb_stat_section) g_lps22hbstats;
+STATS_SECT_DECL(lps22hb_stats) g_lps22hb_stats;
+
+/* Define the stats section and records */
+STATS_NAME_START(lps22hb_stats)
+    STATS_NAME(lps22hb_stats, read_errors)
+    STATS_NAME(lps22hb_stats, write_errors)
+    STATS_NAME(lps22hb_stats, mutex_errors)
+STATS_NAME_END(lps22hb_stats)
+
 
 #define LOG_MODULE_LPS22HB    (2200)
 #define LPS22HB_INFO(...)     LOG_INFO(&_log, LOG_MODULE_LPS22HB, __VA_ARGS__)
@@ -94,6 +96,7 @@ lps22hb_write8(struct lps22hb *dev, uint8_t reg, uint32_t value)
         if (err != OS_OK)
         {
             LPS22HB_ERR("Mutex error=%d\n", err);
+            STATS_INC(g_lps22hb_stats, mutex_errors);
             return err;
         }
     }
@@ -104,7 +107,7 @@ lps22hb_write8(struct lps22hb *dev, uint8_t reg, uint32_t value)
     if (rc) {
         LPS22HB_ERR("Failed to write to 0x%02X:0x%02X with value 0x%02X\n",
                        itf->si_addr, reg, value);
-        STATS_INC(g_lps22hbstats, read_errors);
+        STATS_INC(g_lps22hb_stats, write_errors);
     }
 
     if (dev->i2c_mutex)
@@ -144,6 +147,7 @@ lps22hb_read8(struct lps22hb *dev, uint8_t reg, uint8_t *value)
         if (err != OS_OK)
         {
             LPS22HB_ERR("Mutex error=%d\n", err);
+            STATS_INC(g_lps22hb_stats, mutex_errors);
             return err;
         }
     }
@@ -153,7 +157,7 @@ lps22hb_read8(struct lps22hb *dev, uint8_t reg, uint8_t *value)
                               OS_TICKS_PER_SEC / 10, 0);
     if (rc) {
         LPS22HB_ERR("I2C access failed at address 0x%02X\n", itf->si_addr);
-        STATS_INC(g_lps22hbstats, write_errors);
+        STATS_INC(g_lps22hb_stats, write_errors);
         goto exit;
     }
 
@@ -164,7 +168,7 @@ lps22hb_read8(struct lps22hb *dev, uint8_t reg, uint8_t *value)
 
     if (rc) {
          LPS22HB_ERR("Failed to read from 0x%02X:0x%02X\n", itf->si_addr, reg);
-         STATS_INC(g_lps22hbstats, read_errors);
+         STATS_INC(g_lps22hb_stats, read_errors);
     }
 
 exit:
@@ -206,6 +210,7 @@ lps22hb_read_bytes(struct lps22hb *dev, uint8_t reg, uint8_t *buffer, uint32_t l
         if (err != OS_OK)
         {
             LPS22HB_ERR("Mutex error=%d\n", err);
+            STATS_INC(g_lps22hb_stats, mutex_errors);
             return err;
         }
     }
@@ -215,7 +220,7 @@ lps22hb_read_bytes(struct lps22hb *dev, uint8_t reg, uint8_t *buffer, uint32_t l
                               OS_TICKS_PER_SEC / 10, 0);
     if (rc) {
         LPS22HB_ERR("I2C access failed at address 0x%02X\n", itf->si_addr);
-        STATS_INC(g_lps22hbstats, write_errors);
+        STATS_INC(g_lps22hb_stats, write_errors);
         goto exit;
     }
 
@@ -227,7 +232,7 @@ lps22hb_read_bytes(struct lps22hb *dev, uint8_t reg, uint8_t *buffer, uint32_t l
 
     if (rc) {
          LPS22HB_ERR("Failed to read from 0x%02X:0x%02X\n", itf->si_addr, reg);
-         STATS_INC(g_lps22hbstats, read_errors);
+         STATS_INC(g_lps22hb_stats, read_errors);
     }
 
 exit:
@@ -374,16 +379,6 @@ lps22hb_init(struct os_dev *dev, void *arg)
 
     sensor = &lhb->sensor;
 
-    /* Initialise the stats entry */
-    rc = stats_init(
-        STATS_HDR(g_lps22hbstats),
-        STATS_SIZE_INIT_PARMS(g_lps22hbstats, STATS_SIZE_32),
-        STATS_NAME_INIT_PARMS(lps22hb_stat_section));
-    SYSINIT_PANIC_ASSERT(rc == 0);
-    /* Register the entry with the stats registry */
-    rc = stats_register(dev->od_name, STATS_HDR(g_lps22hbstats));
-    SYSINIT_PANIC_ASSERT(rc == 0);
-
     rc = sensor_init(sensor, dev);
     if (rc) {
         return rc;
@@ -408,8 +403,14 @@ int
 lps22hb_config(struct lps22hb *lhb, struct lps22hb_cfg *cfg)
 {
     int rc;
-
     uint8_t val;
+
+    /* Init stats */
+    rc = stats_init_and_reg(
+        STATS_HDR(g_lps22hb_stats), STATS_SIZE_INIT_PARMS(g_lps22hb_stats,
+        STATS_SIZE_32), STATS_NAME_INIT_PARMS(lps22hb_stats), "sen_lps22hb");
+    SYSINIT_PANIC_ASSERT(rc == 0);
+    
     rc = lps22hb_read8(lhb, LPS22HB_WHO_AM_I, &val);
     if (rc) {
         return rc;

@@ -31,22 +31,24 @@
 #include "lis2mdl/lis2mdl.h"
 #include "lis2mdl_priv.h"
 #include "log/log.h"
-#include "stats/stats.h"
+#include <stats/stats.h>
 
-/* Define the stats section and records */
-STATS_SECT_START(lis2mdl_stat_section)
+STATS_SECT_START(lis2mdl_stats)
     STATS_SECT_ENTRY(read_errors)
     STATS_SECT_ENTRY(write_errors)
+    STATS_SECT_ENTRY(mutex_errors)
 STATS_SECT_END
 
-/* Define stat names for querying */
-STATS_NAME_START(lis2mdl_stat_section)
-    STATS_NAME(lis2mdl_stat_section, read_errors)
-    STATS_NAME(lis2mdl_stat_section, write_errors)
-STATS_NAME_END(lis2mdl_stat_section)
-
 /* Global variable used to hold stats data */
-STATS_SECT_DECL(lis2mdl_stat_section) g_lis2mdlstats;
+STATS_SECT_DECL(lis2mdl_stats) g_lis2mdl_stats;
+
+/* Define the stats section and records */
+STATS_NAME_START(lis2mdl_stats)
+    STATS_NAME(lis2mdl_stats, read_errors)
+    STATS_NAME(lis2mdl_stats, write_errors)
+    STATS_NAME(lis2mdl_stats, mutex_errors)
+STATS_NAME_END(lis2mdl_stats)
+
 
 #define LOG_MODULE_LIS2MDL    (2000)
 #define LIS2MDL_INFO(...)     LOG_INFO(&_log, LOG_MODULE_LIS2MDL, __VA_ARGS__)
@@ -93,6 +95,7 @@ lis2mdl_write8(struct lis2mdl *dev, uint8_t reg, uint32_t value)
         if (err != OS_OK)
         {
             LIS2MDL_ERR("Mutex error=%d\n", err);
+            STATS_INC(g_lis2mdl_stats, mutex_errors);
             return err;
         }
     }
@@ -103,7 +106,7 @@ lis2mdl_write8(struct lis2mdl *dev, uint8_t reg, uint32_t value)
     if (rc) {
         LIS2MDL_ERR("Failed to write to 0x%02X:0x%02X with value 0x%02X\n",
                        itf->si_addr, reg, value);
-        STATS_INC(g_lis2mdlstats, read_errors);
+        STATS_INC(g_lis2mdl_stats, write_errors);
     }
 
     if (dev->i2c_mutex)
@@ -143,6 +146,7 @@ lis2mdl_read8(struct lis2mdl *dev, uint8_t reg, uint8_t *value)
         if (err != OS_OK)
         {
             LIS2MDL_ERR("Mutex error=%d\n", err);
+            STATS_INC(g_lis2mdl_stats, mutex_errors);
             return err;
         }
     }
@@ -152,7 +156,7 @@ lis2mdl_read8(struct lis2mdl *dev, uint8_t reg, uint8_t *value)
                               OS_TICKS_PER_SEC / 10, 0);
     if (rc) {
         LIS2MDL_ERR("I2C access failed at address 0x%02X\n", itf->si_addr);
-        STATS_INC(g_lis2mdlstats, write_errors);
+        STATS_INC(g_lis2mdl_stats, write_errors);
         goto exit;
     }
 
@@ -163,7 +167,7 @@ lis2mdl_read8(struct lis2mdl *dev, uint8_t reg, uint8_t *value)
 
     if (rc) {
          LIS2MDL_ERR("Failed to read from 0x%02X:0x%02X\n", itf->si_addr, reg);
-         STATS_INC(g_lis2mdlstats, read_errors);
+         STATS_INC(g_lis2mdl_stats, read_errors);
     }
 
 exit:
@@ -205,6 +209,7 @@ lis2mdl_read_bytes(struct lis2mdl *dev, uint8_t reg, uint8_t *buffer, uint32_t l
         if (err != OS_OK)
         {
             LIS2MDL_ERR("Mutex error=%d\n", err);
+            STATS_INC(g_lis2mdl_stats, mutex_errors);
             return err;
         }
     }
@@ -214,7 +219,7 @@ lis2mdl_read_bytes(struct lis2mdl *dev, uint8_t reg, uint8_t *buffer, uint32_t l
                               OS_TICKS_PER_SEC / 10, 0);
     if (rc) {
         LIS2MDL_ERR("I2C access failed at address 0x%02X\n", itf->si_addr);
-        STATS_INC(g_lis2mdlstats, write_errors);
+        STATS_INC(g_lis2mdl_stats, write_errors);
         goto exit;
     }
 
@@ -225,8 +230,8 @@ lis2mdl_read_bytes(struct lis2mdl *dev, uint8_t reg, uint8_t *buffer, uint32_t l
                              OS_TICKS_PER_SEC / 10, 1);
 
     if (rc) {
-         LIS2MDL_ERR("Failed to read from 0x%02X:0x%02X\n", itf->si_addr, reg);
-         STATS_INC(g_lis2mdlstats, read_errors);
+        LIS2MDL_ERR("Failed to read from 0x%02X:0x%02X\n", itf->si_addr, reg);
+        STATS_INC(g_lis2mdl_stats, read_errors);
     }
 
 exit:
@@ -387,17 +392,6 @@ lis2mdl_init(struct os_dev *dev, void *arg)
 
     sensor = &lis->sensor;
 
-    /* Initialise the stats entry */
-    rc = stats_init(
-        STATS_HDR(g_lis2mdlstats),
-        STATS_SIZE_INIT_PARMS(g_lis2mdlstats, STATS_SIZE_32),
-        STATS_NAME_INIT_PARMS(lis2mdl_stat_section));
-    SYSINIT_PANIC_ASSERT(rc == 0);
-
-    /* Register the entry with the stats registry */
-    rc = stats_register(dev->od_name, STATS_HDR(g_lis2mdlstats));
-    SYSINIT_PANIC_ASSERT(rc == 0);
-
     rc = sensor_init(sensor, dev);
     if (rc) {
         return rc;
@@ -425,8 +419,14 @@ int
 lis2mdl_config(struct lis2mdl *lis, struct lis2mdl_cfg *cfg)
 {
     int rc;
-
     uint8_t val;
+
+    /* Init stats */
+    rc = stats_init_and_reg(
+        STATS_HDR(g_lis2mdl_stats), STATS_SIZE_INIT_PARMS(g_lis2mdl_stats,
+        STATS_SIZE_32), STATS_NAME_INIT_PARMS(lis2mdl_stats), "sen_lis2mdl");
+    SYSINIT_PANIC_ASSERT(rc == 0);
+    
     rc = lis2mdl_read8(lis, LIS2MDL_WHO_AM_I, &val);
     if (rc) {
         return rc;
