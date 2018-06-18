@@ -50,7 +50,7 @@ STATS_NAME_START(lis2mdl_stats)
 STATS_NAME_END(lis2mdl_stats)
 
 
-#define LOG_MODULE_LIS2MDL    (2000)
+#define LOG_MODULE_LIS2MDL    (81)
 #define LIS2MDL_INFO(...)     LOG_INFO(&_log, LOG_MODULE_LIS2MDL, __VA_ARGS__)
 #define LIS2MDL_ERR(...)      LOG_ERROR(&_log, LOG_MODULE_LIS2MDL, __VA_ARGS__)
 static struct log _log;
