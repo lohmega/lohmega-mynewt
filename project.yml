@@ -1,5 +1,9 @@
 project.name: "loligo-mynewt"
 
+project.versions:
+  "0.1.0" : "mynewt_0.1.0"
+
+
 project.repositories:
     - apache-mynewt-core
     - mynewt-dw1000-core
