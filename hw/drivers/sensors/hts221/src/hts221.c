@@ -291,7 +291,7 @@ hts221_read_calibration(struct hts221 *dev, hts221_cal_t *cal)
 /**
  * Expects to be called back through os_dev_create().
  *
- * @param The device object associated with this accellerometer
+ * @param The device object associated with this device
  * @param Argument passed to OS device init, unused
  *
  * @return 0 on success, non-zero error on failure.
