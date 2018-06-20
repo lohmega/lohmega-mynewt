@@ -1,0 +1,4 @@
+### Target: targets/bb_sensortest
+target.app: "apps/sensor_test"
+target.bsp: "hw/bsp/blueberry"
+target.build_profile: "debug"

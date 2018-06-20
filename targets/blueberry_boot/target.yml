@@ -1,0 +1,4 @@
+### Target: targets/blueberry_boot
+target.app: "@apache-mynewt-core/apps/boot"
+target.bsp: "hw/bsp/blueberry"
+target.build_profile: "optimized"

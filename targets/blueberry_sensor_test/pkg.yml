@@ -1,0 +1,7 @@
+### Package: targets/bb_sensortest
+pkg.name: "targets/blueberry_sensor_test"
+pkg.type: "target"
+pkg.description: 
+pkg.author: 
+pkg.homepage: 
+
