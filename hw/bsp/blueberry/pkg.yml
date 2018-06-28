@@ -27,6 +27,7 @@ pkg.keywords:
     - mpu6500
     - hts221
     - lps22hb
+    - si1133
 
 pkg.cflags:
     # Nordic SDK files require these defines.
@@ -59,8 +60,12 @@ pkg.deps.LPS22HB_ONB:
 
 pkg.deps.HTS221_ONB:
     - 'hw/drivers/sensors/hts221'
+
+pkg.deps.SI1133_ONB:
+    - 'hw/drivers/sensors/si1133'
     
 pkg.init:
   config_mpu6500_sensor: 400
   config_lps22hb_sensor: 400
+  config_hts221_sensor: 400
   config_hts221_sensor: 400

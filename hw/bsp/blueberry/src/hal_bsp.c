@@ -96,6 +96,8 @@ static struct sensor_itf i2c_1_itf_hts = {
 };
 #endif
 
+// TODO si1133 struct with i2c address and include (as abowe but for si1133) 
+
 
 #endif
 
@@ -253,6 +255,13 @@ config_hts221_sensor(void)
     return 0;
 }
 
+int
+config_si1133_sensor(void)
+{
+#if MYNEWT_VAL(SI1133_ONB)
+    //TODO
+#endif
+}
 
 static void
 sensor_dev_create(void)
@@ -278,6 +287,11 @@ sensor_dev_create(void)
     assert(rc == 0);
 #endif
 
+#if MYNEWT_VAL(SI1133_ONB)
+    rc = os_dev_create((struct os_dev *) &si1133, "si1133_0"
+      OS_DEV_INIT_PRIMARY, 0, SI1133_init, (void *)&i2c_1_itf_hts);
+    assert(rc == 0;)
+#endif
     
 }
 

@@ -67,6 +67,9 @@ syscfg.defs:
     HTS221_ONB:
         description: 'hts221 relative humidity sensor'
         value:  0
+    SI1133_ONB:
+        description: 'si1133 light sensor'
+        value:  0
 
         
 syscfg.defs.BLE_LP_CLOCK:
