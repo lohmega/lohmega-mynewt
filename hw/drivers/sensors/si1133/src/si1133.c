@@ -5,21 +5,6 @@
 #include <errno.h>
 #include <string.h>
 
-///* only used for debugging*/
-//#include <inttypes.h> 
-//#define BYTE_TO_BINARY_PATTERN "%c%c%c%c%c%c%c%c"
-//#define BYTE_TO_BINARY(byte)  \
-//  (byte & 0x80 ? '1' : '0'), \
-//  (byte & 0x40 ? '1' : '0'), \
-//  (byte & 0x20 ? '1' : '0'), \
-//  (byte & 0x10 ? '1' : '0'), \
-//  (byte & 0x08 ? '1' : '0'), \
-//  (byte & 0x04 ? '1' : '0'), \
-//  (byte & 0x02 ? '1' : '0'), \
-//  (byte & 0x01 ? '1' : '0') 
-///* only used for debugging*/
-
-
 #include "sysinit/sysinit.h"
 #include "os/os.h"
 #include "bsp/bsp.h"
@@ -29,10 +14,25 @@
 #endif
 #include "console/console.h"
 #include "hal/hal_i2c.h"
+#include "sensor/sensor.h"
+#include "sensor/light.h"
 
 // TODO do the header file propertly
-#include "sensor/SI1133.h"
+#include "si1133/SI1133.h"
 
+
+
+/* Exports for the sensor API */
+static int si1133_sensor_read(struct sensor *, sensor_type_t,
+        sensor_data_func_t, void *, uint32_t);
+
+static int si1133_sensor_get_config(struct sensor *, sensor_type_t,
+        struct sensor_cfg *);
+
+static const struct sensor_driver g_si1133_sensor_driver = {
+    si1133_sensor_read,
+    si1133_sensor_get_config
+};
 
 /***************************************************************************/
 static SI1133_LuxCoeff_TypeDef lk = {
@@ -105,7 +105,7 @@ uint32_t SI1133_registerWrite(uint8_t reg, uint8_t data){
 
 /**
  * @biref Read from reg, write to *data
- * @param reg, register to write to
+ * @param reg, register to read to
  * @param data, array to put content in
  * @return  0x0000 if ok
  */
@@ -745,7 +745,7 @@ uint32_t SI1133_measurementPause(void)
     return SI1133_sendCmd(SI1133_CMD_PAUSE_CH);
 }
 
-uint32_t SI1133_init(void){
+uint32_t si1133_config(struct si1133 *si1, struct_cfg *cfg){
 
     int rc;
 
@@ -775,6 +775,79 @@ uint32_t SI1133_init(void){
     uint8_t irq;
     rc += SI1133_getIrqStatus(&irq);
 
+
+    rc += sensor_set_type_mask(&(lsm->sensor), cfg->mask); //TODO
+
     return rc;
 } 
+ 
 
+int si1133_init(struct os_dev *dev, void *arg){
+    
+    struct si1133 *si1;
+    struct sensor *sensor;
+    int rc;
+
+    rc = sensor_init(sensor, dev);
+    if(rc){
+        return rc;
+    }
+
+    /* Add lux/uv driver*/
+    rc = sensor_set_driver(sensor, SENSOR_TYPE_LIGHT, 
+            (struct sensor_driver *) &g_is1133_sensor_driver);
+    if(rc){
+        return rc;
+    }
+
+    rc = sensor_set_interface(sensor, arg);
+    if(rc){
+        return rc;
+    }
+
+    rc = sensor_mgr_register(sensor);
+
+    return rc;
+}
+
+static int si1133_sensor_read(struct sensor *sensor, sensor_type_t type,
+        sensor_data_func_t data_func, void *data_arg, unti32_t timeout){
+    (void)timeout;
+    int rc;
+    int32_t lux, uvi;
+    struct si1133 *si1;
+    struct sensor_light_data sld;
+
+    if (!(type & SENSOR_TYPE_LIGHT)){
+        return SYS_EINVAL;
+    }
+
+    si1 = (struct si1133 *) SENSOR_GET_DEVICE(sensor);
+
+    if (type & (SENSOR_TYPE_LIGHT)){
+        rc = SI1133_measureLuxUvi(&lux, &uvi);
+
+        if(rc) {
+            return rc;
+        }
+
+        sld.sld_lux = lux;
+        sld.sld_ir = (uint16_t)uvi;
+
+        rc = data_func(sensor, data_arg, &sld, SENSOR_TYPE_LIGHT);
+        if (rc) {
+            return rc
+        }
+    }
+}
+
+static int si1144_sensor_get_config(struct sensor *sensor, sensor_type_t type,
+        struct sensor_cfg *cfg){
+    if (!(type & (SENSOR_TYPE_LIGHT))) {
+        return SYS_EINVAL;
+    }
+
+    cfg->sc_valtype = SENSOR_VALUE_TYPE_INT32;
+
+    return 0
+}

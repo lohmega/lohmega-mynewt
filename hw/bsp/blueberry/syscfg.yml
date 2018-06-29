@@ -69,7 +69,7 @@ syscfg.defs:
         value:  0
     SI1133_ONB:
         description: 'si1133 light sensor'
-        value:  0
+        value:  1
 
         
 syscfg.defs.BLE_LP_CLOCK:

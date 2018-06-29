@@ -39,6 +39,7 @@
 #include "sensor/pressure.h"
 #include "sensor/humidity.h"
 #include "sensor/temperature.h"
+#include "sensor/light.h"
 #include "console/console.h"
 
 /* The timer callout */
@@ -52,6 +53,7 @@ int sensor_data_cb(struct sensor* sensor, void *arg, void *data, sensor_type_t t
     struct sensor_press_data *spd;
     struct sensor_temp_data *std;
     struct sensor_humid_data *shd;
+    struct sensor_light_data *sld;
     char tmpstr[13];
 
     if (type == SENSOR_TYPE_ACCELEROMETER ||
@@ -132,6 +134,21 @@ int sensor_data_cb(struct sensor* sensor, void *arg, void *data, sensor_type_t t
         console_printf("\n");
     }
 
+    if (type == SENSOR_TYPE_LIGHT){
+        sld = (struct sensor_light_data *) data;
+        console_printf("ambient light");
+        if (sld->sld_full_is_valid){ 
+            console_printf("full = %s ", sensor_ftostr(sld->sld_full, tmpstr, 13));
+        }
+        if (sld->sld_ir_is_valid){ 
+            console_printf("ir = %s ", sensor_ftostr(sld->sld_ir, tmpstr, 13));
+        }
+        if (sld->sld_lux_is_valid){ 
+            console_printf("lux = %s ", sensor_ftostr(sld->sld_lux, tmpstr, 13));
+        }
+    console_printf("\n");
+    }
+
     return (0);
 }
 
@@ -147,12 +164,14 @@ static void sensor_timer_ev_cb(struct os_event *ev) {
                                     SENSOR_TYPE_PRESSURE,
                                     SENSOR_TYPE_RELATIVE_HUMIDITY,
                                     SENSOR_TYPE_TEMPERATURE,
+                                    SENSOR_TYPE_LIGHT,
                                     SENSOR_TYPE_NONE};
         
     assert(ev != NULL);
     int i=0;
     while (sensor_types[i] != SENSOR_TYPE_NONE)
     {
+        console_printf("i: %d \n", i);
         s = sensor_mgr_find_next_bytype(sensor_types[i], NULL);
         if (s)
         {
@@ -193,6 +212,8 @@ main(int argc, char **argv)
     sysinit();
 
     init_timer();
+
+    os_time_delay(OS_TICKS_PER_SEC*5);
     
     /* As the last thing, process events from default event queue. */
     while (1) {

@@ -1,3 +1,10 @@
+#ifndef __SENSOR_SI1133_H__
+#define __SENSOR_SI1133_H__
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /***************************************************************************/
 #define X_ORDER_MASK 0x0070
 #define Y_ORDER_MASK 0x0007
@@ -23,6 +30,19 @@
 #define SI1133_ERROR_I2C_TRANSACTION_FAILED 0x0001
 #define SI1133_ERROR_SLEEP_FAILED 0x0002
 
+/***************************************************************************/
+struct si1133_cfg{
+    uint8_t int_enable;
+    sensor_type_t mask;
+};
+/***************************************************************************/
+struct si1133 {
+    struct os_dev dev;
+    struct sensor sensor;
+    struct os_mutex *i2c_mutex;
+    struct si1133_cfg cfg;
+    os_time_t last_read_time;
+};
 
 /***************************************************************************/
 typedef struct {
@@ -132,9 +152,7 @@ typedef struct {
 #define SI1133_RSP0_CHIPSTAT_MASK 0xE0
 #define SI1133_RSP0_COUNTER_MASK 0x1F
 #define SI1133_RSP0_SLEEP 0x20
-
-
-
+/***************************************************************************/
 
 
 uint32_t SI1133_registerWrite(uint8_t reg, uint8_t data);
@@ -161,3 +179,11 @@ uint32_t SI1133_getMeasurementf(float *lux, float *uvi);
 uint32_t SI1133_getMeasurement(int32_t *lux, int32_t *uvi);
 uint32_t SI1133_getIrqStatus(uint8_t *irqStatus);
 uint32_t SI1133_enableIrq0(bool enable);
+uint32_t si1133_config(void);
+int si1133_init(struct os_dev *dev, void *arg);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /* __SENSOR_HTS221_H__ */
