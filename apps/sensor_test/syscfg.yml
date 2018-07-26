@@ -36,3 +36,4 @@ syscfg.vals:
     LPS22HB_ONB: "1"
     HTS221_ONB: "1"
     MPU6500_ONB: "1"
+    SI1133_ONB: "1"

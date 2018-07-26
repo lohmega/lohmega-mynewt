@@ -5,20 +5,23 @@
 #include <errno.h>
 #include <string.h>
 
-#include "sysinit/sysinit.h"
+
 #include "os/os.h"
+#include "os/os_mutex.h"
+#include "sysinit/sysinit.h"
+#include "hal/hal_i2c.h"
+#include "sensor/sensor.h"
+#include "sensor/light.h"
+#include "si1133/SI1133.h"
+#include "log/log.h"
+#include <stats/stats.h>
+
 #include "bsp/bsp.h"
 #include "hal/hal_gpio.h"
 #ifdef ARCH_sim
 #include "mcu/mcu_sim.h"
 #endif
 #include "console/console.h"
-#include "hal/hal_i2c.h"
-#include "sensor/sensor.h"
-#include "sensor/light.h"
-
-// TODO do the header file propertly
-#include "si1133/SI1133.h"
 
 
 
@@ -81,24 +84,41 @@ uint32_t SI1133_getHardwareID(uint8_t *hardwareID){
  * @param data
  * @return 0x0000 if ok
  */
-uint32_t SI1133_registerWrite(uint8_t reg, uint8_t data){
+uint32_t SI1133_registerWrite(struct si1133 *dev, uint8_t reg, uint8_t data){
+    
     int rc;
-
+    os_error_t err = 0;
+    struct sensor_itf *itf = &dev->sensor.s_itf;
     uint8_t out[2] = {reg, data};
 
     struct hal_i2c_master_data data_struct = {
-        .address = I2C_ADDRESS, 
+        .address = itf->si_addr, 
         .len = 2,
         .buffer = out
     };
 
+    if (dev->i2c_mutex)
+    {
+        err = os_mutex_pend(dev->i2c_mutex, OS_WAIT_FOREVER);
+        if (err != OS_OK)
+        {
+            // TODO add log error message. See lis2mdl.c line 97-99
+            return err;
+        }
+    }
+
     rc = hal_i2c_master_write(1, &data_struct, OS_TICKS_PER_SEC / 10, 0);
 
     if (rc){
+        // TODO use log instead of console_printf()
         console_printf("faild to write");
         console_printf("\n");
     }
 
+    if (dev->i2c_mutex){
+        err = os_mutex_release(dev->i2c_mutex);
+        assert(err == OS_OK);
+    }
 
     return rc;
 }
@@ -109,15 +129,26 @@ uint32_t SI1133_registerWrite(uint8_t reg, uint8_t data){
  * @param data, array to put content in
  * @return  0x0000 if ok
  */
-uint32_t SI1133_registerRead(uint8_t reg, uint8_t *data)
+uint32_t SI1133_registerRead(struct si1133 *dev, uint8_t reg, uint8_t *data)
 {
     uint32_t rc;
+    os_error_t err = 0;
 
     struct hal_i2c_master_data data_struct = {
-        .address = I2C_ADDRESS,  // i2c addres, TODO write as a argument to function
+        .address = itf->si_addr,  // i2c addres, TODO write as a argument to function
         .len = 1,
         .buffer = &reg
     };
+
+    if (dev->i2c_mutex)
+    {
+        err = os_mutex_pend(dev->i2c_mutex, OS_WAIT_FOREVER);
+        if (err != OS_OK)
+        {
+            // TODO add log error message. See lis2mdl.c line 97-99
+            return err;
+        }
+    }
 
     rc = hal_i2c_master_write(1, &data_struct, OS_TICKS_PER_SEC / 10, 0); // TODO itf->si_num
 
@@ -136,6 +167,11 @@ uint32_t SI1133_registerRead(uint8_t reg, uint8_t *data)
         console_printf("faild to read");
         console_printf("\n");
         return rc;
+    }
+
+    if (dev->i2c_mutex){
+        err = os_mutex_release(dev->i2c_mutex);
+        assert(err == OS_OK);
     }
 
     return rc;
@@ -174,18 +210,28 @@ uint32_t SI1133_waitUntilSleep(void){
     return retval;
 }
 
-uint32_t SI1133_registerBlockRead(uint8_t reg, uint8_t length, uint8_t *data)
+uint32_t SI1133_registerBlockRead(struct si1133 *dev, uint8_t reg, uint8_t length, uint8_t *data)
 {
-
     uint32_t rc;
+    os_error_t err = 0;
 
     rc = SI1133_OK;
 
     struct hal_i2c_master_data data_struct = {
-        .address = I2C_ADDRESS,
+        .address = itf->si_addr,
         .len = 1,
         .buffer = &reg
     };
+
+    if(dev->i2c_mutex)
+    {
+        err = os_mutex_pend(dev->i2c_mutex, OS_WAIT_FOREVER);
+        if (err != OS_OK)
+        {
+            //TODO log error message
+            return err;
+        }
+    }
 
     rc = hal_i2c_master_write(1, &data_struct, OS_TICKS_PER_SEC / 10, 1);
 
@@ -193,6 +239,12 @@ uint32_t SI1133_registerBlockRead(uint8_t reg, uint8_t length, uint8_t *data)
     data_struct.buffer = data;
 
     rc = hal_i2c_master_read(1, &data_struct, OS_TICKS_PER_SEC / 10, 1);
+
+    if (dev->i2c_mutex)
+    {
+        err = os_mutex_release(dev->i2c_mutex);
+        assert(err == OS_OK);
+    }
 
     return rc;
 }
@@ -202,10 +254,11 @@ uint32_t SI1133_registerBlockRead(uint8_t reg, uint8_t length, uint8_t *data)
  * @param length,
  * @param data,
  */
-uint32_t SI1133_registerBlockWrite(uint8_t reg, uint8_t length, uint8_t *data){
+uint32_t SI1133_registerBlockWrite(struct si1133 *dev, uint8_t reg, uint8_t length, uint8_t *data){
 
     uint8_t i2c_write_data[length];
     uint32_t rc;
+    os_error_t err = 0;
 
     i2c_write_data[0] = reg;
 
@@ -215,17 +268,35 @@ uint32_t SI1133_registerBlockWrite(uint8_t reg, uint8_t length, uint8_t *data){
     }
 
     struct hal_i2c_master_data data_struct = {
-        .address = I2C_ADDRESS,
+        .address = itf->si_addr,
         .len = length+1,
         .buffer = i2c_write_data
     };
 
+    if (dev->i2c_mutex)
+    {
+        err = os_mutex_pend(dev->i2c_mutex, OS_WAIT_FOREVER);
+        if (err != OS_OK)
+        {
+            //HTS221_ERR("Mutex error=%d\n", err);
+            //STATS_INC(g_hts221_stats, mutex_errors);
+            return err;
+        }
+    }
+
     rc = hal_i2c_master_write(1, &data_struct, OS_TICKS_PER_SEC / 10, 1);
 
     if (rc){
+        //TODO log error not console_printf
         console_printf("faild to write (block)");
         console_printf("\n");
         return rc;
+    }
+
+     if (dev->i2c_mutex)
+    {
+        err = os_mutex_release(dev->i2c_mutex);
+        assert(err == OS_OK);
     }
 
     return rc;
@@ -299,7 +370,7 @@ uint32_t SI1133_paramSet(uint8_t address, uint8_t value){
 uint32_t SI1133_reset(void){
     uint32_t rc;
     os_time_delay(5);
-    rc = SI1133_registerWrite(SI1133_REG_COMMAND, SI1133_CMD_RESET);
+    rc = SI1133_registerWrite(struct si1133 *dev, SI1133_REG_COMMAND, SI1133_CMD_RESET);
     os_time_delay(5);
 
     if(rc){
@@ -488,7 +559,7 @@ int32_t SI1133_getLux(int32_t vis_high, int32_t vis_low, int32_t ir,
     return lux;
 }
 
-uint32_t SI1133_measureLuxUvi(int32_t *lux, int32_t *uvi)
+uint32_t SI1133_measureLuxUvi(struct si1133 *dev, int32_t *lux, int32_t *uvi)
 {
 
     SI1133_Samples_TypeDef samples;
@@ -570,7 +641,7 @@ static uint32_t SI1133_sendCmd(uint8_t command)
     }
 
     /* Send the command */
-    ret = SI1133_registerWrite(SI1133_REG_COMMAND, command);
+    ret = SI1133_registerWrite(struct si1133 *dev, SI1133_REG_COMMAND, command);
     if (ret != SI1133_OK) {
         return ret;
     }
@@ -689,10 +760,10 @@ uint32_t SI1133_enableIrq0(bool enable)
     uint32_t retval;
 
     if (enable) {
-        retval = SI1133_registerWrite(SI1133_REG_IRQ_ENABLE, 0x0F);
+        retval = SI1133_registerWrite(struct si1133 *dev, SI1133_REG_IRQ_ENABLE, 0x0F);
     }
     else {
-        retval = SI1133_registerWrite(SI1133_REG_IRQ_ENABLE, 0);
+        retval = SI1133_registerWrite(struct si1133 *dev, SI1133_REG_IRQ_ENABLE, 0);
     }
 
     //APP_ERROR_CHECK(retval);
@@ -745,7 +816,7 @@ uint32_t SI1133_measurementPause(void)
     return SI1133_sendCmd(SI1133_CMD_PAUSE_CH);
 }
 
-uint32_t si1133_config(struct si1133 *si1, struct_cfg *cfg){
+uint32_t si1133_config(struct si1133 *si1, struct si1133_cfg *cfg){
 
     int rc;
 
@@ -770,13 +841,14 @@ uint32_t si1133_config(struct si1133 *si1, struct_cfg *cfg){
     rc += SI1133_paramSet(SI1133_PARAM_ADCSENS3, 0x17);
     rc += SI1133_paramSet(SI1133_PARAM_ADCPOST3, 0x40);
 
-    rc += SI1133_registerWrite(SI1133_REG_IRQ_ENABLE, 0x0f);
+    rc += SI1133_registerWrite(struct si1133 *dev, SI1133_REG_IRQ_ENABLE, 0x0f);
+    si1->cfg.int_enable = cfg->int_enable;
 
     uint8_t irq;
     rc += SI1133_getIrqStatus(&irq);
 
-
-    rc += sensor_set_type_mask(&(lsm->sensor), cfg->mask); //TODO
+    rc += sensor_set_type_mask(&(si1->sensor), cfg->mask);
+    si1->cfg.mask = cfg->mask;
 
     return rc;
 } 
@@ -788,6 +860,10 @@ int si1133_init(struct os_dev *dev, void *arg){
     struct sensor *sensor;
     int rc;
 
+    si1 = (struct si1133 *) dev;
+
+    si1->cfg.mask = SENSOR_TYPE_ALL;
+
     rc = sensor_init(sensor, dev);
     if(rc){
         return rc;
@@ -795,11 +871,11 @@ int si1133_init(struct os_dev *dev, void *arg){
 
     /* Add lux/uv driver*/
     rc = sensor_set_driver(sensor, SENSOR_TYPE_LIGHT, 
-            (struct sensor_driver *) &g_is1133_sensor_driver);
+            (struct sensor_driver *) &g_si1133_sensor_driver);
     if(rc){
         return rc;
     }
-
+    
     rc = sensor_set_interface(sensor, arg);
     if(rc){
         return rc;
@@ -825,7 +901,7 @@ static int si1133_sensor_read(struct sensor *sensor, sensor_type_t type,
     si1 = (struct si1133 *) SENSOR_GET_DEVICE(sensor);
 
     if (type & (SENSOR_TYPE_LIGHT)){
-        rc = SI1133_measureLuxUvi(&lux, &uvi);
+        rc = SI1133_measureLuxUvi(si1, &lux, &uvi);
 
         if(rc) {
             return rc;

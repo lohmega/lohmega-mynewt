@@ -279,7 +279,7 @@ config_si1133_sensor(void)
     cfg.mask = SENSOR_TYPE_LIGHT;
     cfg.int_enable = 0;
 
-    rc = si1133_config();//(struct si1133 *)dev, &cfg); // TODO add argument 
+    rc = si1133_config((struct si1133 *)dev, &cfg);//(struct si1133 *)dev, &cfg); // TODO add argument 
     SYSINIT_PANIC_ASSERT(rc == 0);
 
     os_dev_close(dev);

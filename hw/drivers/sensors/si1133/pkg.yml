@@ -26,7 +26,6 @@ pkg.keywords:
     - lux
     - i2c
     - sensor
-    - invensense
 
 pkg.deps:
     - "@apache-mynewt-core/hw/hal"
