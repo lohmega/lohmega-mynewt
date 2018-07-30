@@ -23,5 +23,14 @@ repo.versions:
     "0.0.1": "master"
     "0.1.0": "mynewt_0.1.0"
     
-    "0-latest": "0.0.1"    # 0.0.1
-    "0-dev": "0.0.1"       # master
+    "0-latest": "0.1.0"
+    "0-dev": "0.0.0"       # master
+
+
+repo.newt_compatibility:
+    0.0.0:
+        1.1.0: good
+    0.0.1:
+        1.1.0: good
+    0.1.0:
+        1.1.0: good
