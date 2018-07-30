@@ -1,0 +1,20 @@
+pkg.name: hw/drivers/gps
+pkg.description: GPS driver interfaces
+pkg.author: "Niklas Casaril"
+pkg.keywords:
+pkg.req_apis:
+    - GPS_HW_IMPL
+
+pkg.deps:
+    - "@apache-mynewt-core/kernel/os"
+
+pkg.req_api.GPS_SHELL:
+    - "@apache-mynewt-core/console"
+  
+pkg.deps.GPS_SHELL:
+    - "@apache-mynewt-core/sys/shell"
+    - "@apache-mynewt-core/time/datetime"
+
+
+pkg.init:
+  gps_pkg_init: 505

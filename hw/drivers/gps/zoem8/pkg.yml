@@ -1,0 +1,12 @@
+pkg.name: hw/drivers/gps/zoem8
+pkg.description: Driver for ZoeM8
+pkg.author: "Niklas Casaril"
+pkg.keywords:
+    - gps
+    - zoem8
+pkg.apis:
+    - GPS_HW_IMPL
+pkg.deps:
+    - "@apache-mynewt-core/hw/hal"
+    - "@apache-mynewt-core/kernel/os"
+
