@@ -136,7 +136,7 @@ int sensor_data_cb(struct sensor* sensor, void *arg, void *data, sensor_type_t t
 
     if (type == SENSOR_TYPE_LIGHT){
         sld = (struct sensor_light_data *) data;
-        console_printf("ambient light");
+        console_printf("ambient light ");
         if (sld->sld_full_is_valid){ 
             console_printf("full = %s ", sensor_ftostr(sld->sld_full, tmpstr, 13));
         }
@@ -171,7 +171,6 @@ static void sensor_timer_ev_cb(struct os_event *ev) {
     int i=0;
     while (sensor_types[i] != SENSOR_TYPE_NONE)
     {
-        console_printf("i: %d \n", i);
         s = sensor_mgr_find_next_bytype(sensor_types[i], NULL);
         if (s)
         {
