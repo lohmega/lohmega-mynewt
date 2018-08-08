@@ -934,7 +934,7 @@ si1133_sensor_read(struct sensor *sensor, sensor_type_t type,
 {
     (void)timeout;
     int rc;
-    float lux, uvi;
+    int32_t lux, uvi;
     struct si1133 *si1;
     struct sensor_light_data sld;
 
@@ -945,7 +945,7 @@ si1133_sensor_read(struct sensor *sensor, sensor_type_t type,
     si1 = (struct si1133 *) SENSOR_GET_DEVICE(sensor);
 
     if (type & (SENSOR_TYPE_LIGHT)){
-        rc = si1133_measureLuxUvif(si1, &lux, &uvi);
+        rc = si1133_measureLuxUvi(si1, &lux, &uvi);
 
         if(rc) {
             return rc;

@@ -141,10 +141,10 @@ int sensor_data_cb(struct sensor* sensor, void *arg, void *data, sensor_type_t t
             console_printf("Full = %u, ", sld->sld_full);
         }
         if (sld->sld_lux_is_valid) {
-            console_printf("Lux = %u, ", (unsigned int)sld->sld_lux);
+            console_printf("Lux = %s, ",sensor_ftostr((float)sld->sld_lux/1000, tmpstr, 13));
         }
         if (sld->sld_ir_is_valid) {
-            console_printf("UV = %u", sld->sld_ir);
+            console_printf("UV = %s", sensor_ftostr((float)sld->sld_ir/1000, tmpstr, 13));
         }
     console_printf("\n");
     }
