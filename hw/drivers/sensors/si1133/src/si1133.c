@@ -861,16 +861,16 @@ si1133_config(struct si1133 *si1, struct si1133_cfg *cfg)
     
     rc += si1133_paramSet(si1, SI1133_PARAM_CH_LIST, 0x0f);
     rc += si1133_paramSet(si1, SI1133_PARAM_ADCCONFIG0, 0x78);
-    rc += si1133_paramSet(si1, SI1133_PARAM_ADCSENS0, 0x11);
+    rc += si1133_paramSet(si1, SI1133_PARAM_ADCSENS0, 0x71);
     rc += si1133_paramSet(si1, SI1133_PARAM_ADCPOST0, 0x40);
     rc += si1133_paramSet(si1, SI1133_PARAM_ADCCONFIG1, 0x4d);
-    rc += si1133_paramSet(si1, SI1133_PARAM_ADCSENS1, 0x91);
+    rc += si1133_paramSet(si1, SI1133_PARAM_ADCSENS1, 0xe1);
     rc += si1133_paramSet(si1, SI1133_PARAM_ADCPOST1, 0x40);
     rc += si1133_paramSet(si1, SI1133_PARAM_ADCCONFIG2, 0x41);
-    rc += si1133_paramSet(si1, SI1133_PARAM_ADCSENS2, 0x91);
+    rc += si1133_paramSet(si1, SI1133_PARAM_ADCSENS2, 0xe1);
     rc += si1133_paramSet(si1, SI1133_PARAM_ADCPOST2, 0x50);
     rc += si1133_paramSet(si1, SI1133_PARAM_ADCCONFIG3, 0x4d);
-    rc += si1133_paramSet(si1, SI1133_PARAM_ADCSENS3, 0x17);
+    rc += si1133_paramSet(si1, SI1133_PARAM_ADCSENS3, 0x87);
     rc += si1133_paramSet(si1, SI1133_PARAM_ADCPOST3, 0x40);
 
     rc += si1133_registerWrite(si1, SI1133_REG_IRQ_ENABLE, 0x0f);
@@ -934,7 +934,7 @@ si1133_sensor_read(struct sensor *sensor, sensor_type_t type,
 {
     (void)timeout;
     int rc;
-    int32_t lux, uvi;
+    float lux, uvi;
     struct si1133 *si1;
     struct sensor_light_data sld;
 
@@ -945,7 +945,7 @@ si1133_sensor_read(struct sensor *sensor, sensor_type_t type,
     si1 = (struct si1133 *) SENSOR_GET_DEVICE(sensor);
 
     if (type & (SENSOR_TYPE_LIGHT)){
-        rc = si1133_measureLuxUvi(si1, &lux, &uvi);
+        rc = si1133_measureLuxUvif(si1, &lux, &uvi);
 
         if(rc) {
             return rc;
@@ -953,7 +953,7 @@ si1133_sensor_read(struct sensor *sensor, sensor_type_t type,
 
 
         sld.sld_lux = lux;
-        sld.sld_ir = (uint16_t)uvi;
+        sld.sld_ir = uvi;
         sld.sld_ir_is_valid = 1;
         sld.sld_lux_is_valid = 1;
         sld.sld_full_is_valid = 0;
