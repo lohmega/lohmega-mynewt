@@ -120,7 +120,8 @@ int sensor_data_cb(struct sensor* sensor, void *arg, void *data, sensor_type_t t
 
         std = (struct sensor_temp_data *) data;
         if (std->std_temp_is_valid) {
-            console_printf("temperature = %s Deg C", sensor_ftostr(std->std_temp, tmpstr, 13));
+            console_printf("temperature = %s Deg C",
+                            sensor_ftostr(std->std_temp, tmpstr, 13));
         }
         console_printf("\n");
     }
@@ -141,10 +142,12 @@ int sensor_data_cb(struct sensor* sensor, void *arg, void *data, sensor_type_t t
             console_printf("Full = %u, ", sld->sld_full);
         }
         if (sld->sld_lux_is_valid) {
-            console_printf("Lux = %s, ",sensor_ftostr((float)sld->sld_lux/1000, tmpstr, 13));
+            console_printf("Lux = %s, ",
+                        sensor_ftostr((float)sld->sld_lux/1000, tmpstr, 13));
         }
         if (sld->sld_ir_is_valid) {
-            console_printf("UV = %s", sensor_ftostr((float)sld->sld_ir/1000, tmpstr, 13));
+            console_printf("UV = %s",
+                        sensor_ftostr((float)sld->sld_ir/1000, tmpstr, 13));
         }
     console_printf("\n");
     }

@@ -1,4 +1,21 @@
-
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * resarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
 
 #include <stdint.h>
 #include <assert.h>
@@ -74,8 +91,6 @@ static int32_t si1133_calcEvalPoly(int32_t x, int32_t y,
                                    uint8_t input_fraction,
                                    uint8_t output_fraction, uint8_t num_coeff,
                                    si1133_Coeff_TypeDef *kp);
-
-
 
 
 
@@ -159,8 +174,6 @@ si1133_registerRead(struct si1133 *dev, uint8_t reg, uint8_t *data)
         .len = 1,
         .buffer = &reg
     };
-
-
 
     if (dev->i2c_mutex) {
         err = os_mutex_pend(dev->i2c_mutex, OS_WAIT_FOREVER);
@@ -794,7 +807,7 @@ si1133_enableIrq0(struct si1133 *dev, bool enable)
         retval = si1133_registerWrite(dev, SI1133_REG_IRQ_ENABLE, 0);
     }
 
-    //APP_ERROR_CHECK(retval);
+
 
     return retval;
 }
@@ -950,7 +963,6 @@ si1133_sensor_read(struct sensor *sensor, sensor_type_t type,
         if(rc) {
             return rc;
         }
-
 
         sld.sld_lux = lux;
         sld.sld_ir = uvi;

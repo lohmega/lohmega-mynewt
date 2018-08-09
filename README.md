@@ -50,6 +50,7 @@ Process: JLinkGDBServer
 000772 pressure = 101612.37500 Pa
 000772 relative humidity = 42.500000000%rh
 000772 temperature = 23.215999600 Deg C
+000799 ambient light Lux = 282.36801148, UV = 0.946000000
 ...
 
 ```
