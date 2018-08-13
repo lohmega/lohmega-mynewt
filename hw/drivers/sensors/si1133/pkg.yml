@@ -16,24 +16,22 @@
 # specific language governing permissions and limitations
 # under the License.
 #
+#
 
-# Settings this app defines.
-syscfg.defs:
+pkg.name: hw/drivers/sensors/si1133
+pkg.description: Driver for the si1133 light sensor
+pkg.author: ""
+pkg.keywords:
+    - light
+    - lux
+    - i2c
+    - sensor
 
-# Settings this app overrides.
-syscfg.vals:
-    # Route console to RTT
-    CONSOLE_UART: 0
-    CONSOLE_RTT: 1
-    SHELL_TASK: "1"
+pkg.deps:
+    - "@apache-mynewt-core/hw/hal"
+    - "@apache-mynewt-core/kernel/os"
+    - "@apache-mynewt-core/hw/sensor"
 
-    # Include names for statistics.
-    STATS_NAMES: 1
-
-    I2C_1: "1"
-    LSM6DSL_ONB: "0"
-    LIS2MDL_ONB: "0"
-    LPS22HB_ONB: "1"
-    HTS221_ONB: "1"
-    MPU6500_ONB: "1"
-    SI1133_ONB: "1"
+pkg.req_apis:
+    - stats
+    - log

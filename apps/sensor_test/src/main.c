@@ -39,6 +39,7 @@
 #include "sensor/pressure.h"
 #include "sensor/humidity.h"
 #include "sensor/temperature.h"
+#include "sensor/light.h"
 #include "console/console.h"
 
 /* The timer callout */
@@ -52,6 +53,7 @@ int sensor_data_cb(struct sensor* sensor, void *arg, void *data, sensor_type_t t
     struct sensor_press_data *spd;
     struct sensor_temp_data *std;
     struct sensor_humid_data *shd;
+    struct sensor_light_data *sld;
     char tmpstr[13];
 
     if (type == SENSOR_TYPE_ACCELEROMETER ||
@@ -118,7 +120,8 @@ int sensor_data_cb(struct sensor* sensor, void *arg, void *data, sensor_type_t t
 
         std = (struct sensor_temp_data *) data;
         if (std->std_temp_is_valid) {
-            console_printf("temperature = %s Deg C", sensor_ftostr(std->std_temp, tmpstr, 13));
+            console_printf("temperature = %s Deg C",
+                            sensor_ftostr(std->std_temp, tmpstr, 13));
         }
         console_printf("\n");
     }
@@ -130,6 +133,23 @@ int sensor_data_cb(struct sensor* sensor, void *arg, void *data, sensor_type_t t
                            sensor_ftostr(shd->shd_humid, tmpstr, 13));
         }
         console_printf("\n");
+    }
+
+    if (type == SENSOR_TYPE_LIGHT){
+        sld = (struct sensor_light_data *) data;
+        console_printf("ambient light ");
+        if (sld->sld_full_is_valid) {
+            console_printf("Full = %u, ", sld->sld_full);
+        }
+        if (sld->sld_lux_is_valid) {
+            console_printf("Lux = %s, ",
+                        sensor_ftostr((float)sld->sld_lux/1000, tmpstr, 13));
+        }
+        if (sld->sld_ir_is_valid) {
+            console_printf("UV = %s",
+                        sensor_ftostr((float)sld->sld_ir/1000, tmpstr, 13));
+        }
+    console_printf("\n");
     }
 
     return (0);
@@ -147,6 +167,7 @@ static void sensor_timer_ev_cb(struct os_event *ev) {
                                     SENSOR_TYPE_PRESSURE,
                                     SENSOR_TYPE_RELATIVE_HUMIDITY,
                                     SENSOR_TYPE_TEMPERATURE,
+                                    SENSOR_TYPE_LIGHT,
                                     SENSOR_TYPE_NONE};
         
     assert(ev != NULL);
@@ -193,6 +214,8 @@ main(int argc, char **argv)
     sysinit();
 
     init_timer();
+
+    os_time_delay(OS_TICKS_PER_SEC*5);
     
     /* As the last thing, process events from default event queue. */
     while (1) {

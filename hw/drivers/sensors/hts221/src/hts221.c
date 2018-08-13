@@ -172,7 +172,7 @@ hts221_read8(struct hts221 *dev, uint8_t reg, uint8_t *value)
          STATS_INC(g_hts221_stats, read_errors);
     }
 
-exit:
+    exit:
     if (dev->i2c_mutex)
     {
         err = os_mutex_release(dev->i2c_mutex);

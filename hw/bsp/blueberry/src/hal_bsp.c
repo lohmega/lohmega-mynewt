@@ -96,6 +96,17 @@ static struct sensor_itf i2c_1_itf_hts = {
 };
 #endif
 
+#if MYNEWT_VAL(SI1133_ONB)
+#include <si1133/si1133.h>
+static struct si1133 si1133;
+
+static struct sensor_itf i2c_1_itf_si1 = {
+    .si_type = SENSOR_ITF_I2C,
+    .si_num = 1,
+    .si_addr = 0b1010101
+};
+#endif
+
 
 #endif
 
@@ -253,6 +264,31 @@ config_hts221_sensor(void)
     return 0;
 }
 
+int
+config_si1133_sensor(void)
+{
+#if MYNEWT_VAL(SI1133_ONB)
+    int rc;
+    struct os_dev *dev;
+    struct si1133_cfg cfg;
+
+    dev = (struct os_dev *) os_dev_open("si1133_0", OS_TIMEOUT_NEVER, NULL);
+    assert(dev != NULL);
+
+    memset(&cfg, 0, sizeof(cfg));
+    cfg.mask = SENSOR_TYPE_LIGHT;
+    cfg.int_enable = 0;
+
+    rc = si1133_config((struct si1133 *)dev, &cfg); 
+    SYSINIT_PANIC_ASSERT(rc == 0);
+
+    os_dev_close(dev);
+#endif
+    return 0;
+}
+
+
+
 
 static void
 sensor_dev_create(void)
@@ -278,6 +314,11 @@ sensor_dev_create(void)
     assert(rc == 0);
 #endif
 
+#if MYNEWT_VAL(SI1133_ONB)
+    rc = os_dev_create((struct os_dev *) &si1133, "si1133_0",
+      OS_DEV_INIT_PRIMARY, 0, si1133_init, (void *)&i2c_1_itf_si1);
+    assert(rc == 0);
+#endif
     
 }
 
