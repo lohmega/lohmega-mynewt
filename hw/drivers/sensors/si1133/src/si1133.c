@@ -30,6 +30,7 @@
 #include "sensor/sensor.h"
 #include "sensor/light.h"
 #include "si1133/SI1133.h"
+#include "si1133_priv.h"
 #include "log/log.h"
 
 
