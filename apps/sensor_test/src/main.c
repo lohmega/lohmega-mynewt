@@ -77,7 +77,7 @@ int sensor_data_cb(struct sensor* sensor, void *arg, void *data, sensor_type_t t
 
     if (type == SENSOR_TYPE_MAGNETIC_FIELD) {
         smd = (struct sensor_mag_data *) data;
-        console_printf("compass (uT)  ");
+        console_printf("compass (mG)  ");
         if (smd->smd_x_is_valid) {
             console_printf("x = %s ", sensor_ftostr(smd->smd_x, tmpstr, 13));
         }
