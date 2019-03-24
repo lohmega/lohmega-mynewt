@@ -1,0 +1,14 @@
+pkg.name: sys/stats/persistent_stats
+pkg.description: Stores and restores stats of selected pkgs between boots
+pkg.author: "Apache Mynewt <dev@mynewt.apache.org>"
+pkg.homepage: "http://mynewt.apache.org/"
+pkg.keywords:
+
+pkg.deps:
+    - "@apache-mynewt-core/kernel/os"
+
+pkg.req_apis:
+    - stats
+
+#pkg.init:
+#    persistant_stats_pkg_init: 999
