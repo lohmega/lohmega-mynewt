@@ -34,6 +34,7 @@
 #include "log/log.h"
 #include <stats/stats.h>
 
+#if MYNEWT_VAL(LSM6DSL_STATS_ENABLE)
 /* Define the stats section and records */
 STATS_SECT_START(lsm6dsl_stats)
     STATS_SECT_ENTRY(read_errors)
@@ -51,8 +52,16 @@ STATS_NAME_START(lsm6dsl_stats)
     STATS_NAME(lsm6dsl_stats, mutex_errors)
 STATS_NAME_END(lsm6dsl_stats)
 
+#define LSM6DSL_STATS_INC(__X) STATS_INC(g_lsm6dsl_stats, __X)
+#define LSM6DSL_STATS_INCN(__X,__N) STATS_INCN(g_lsm6dsl_stats, __X, __N)
+#else
+#define LSM6DSL_STATS_INC(__X) {}
+#define LSM6DSL_STATS_INCN(__X,__N) {}
+#endif
+
 #define LOG_MODULE_LSM6DSL    (80)
 #define LSM6DSL_INFO(...)     LOG_INFO(&_log, LOG_MODULE_LSM6DSL, __VA_ARGS__)
+#define LSM6DSL_DEBUG(...)    LOG_DEBUG(&_log, LOG_MODULE_LSM6DSL, __VA_ARGS__)
 #define LSM6DSL_ERR(...)      LOG_ERROR(&_log, LOG_MODULE_LSM6DSL, __VA_ARGS__)
 static struct log _log;
 
@@ -90,13 +99,10 @@ lsm6dsl_write8(struct lsm6dsl *dev, uint8_t reg, uint32_t value)
         .buffer = payload
     };
 
-    if (dev->i2c_mutex)
-    {
+    if (dev->i2c_mutex) {
         err = os_mutex_pend(dev->i2c_mutex, OS_WAIT_FOREVER);
-        if (err != OS_OK)
-        {
-            LSM6DSL_ERR("Mutex error=%d\n", err);
-            STATS_INC(g_lsm6dsl_stats, mutex_errors);
+        if (err != OS_OK) {
+            LSM6DSL_STATS_INC(mutex_errors);
             return err;
         }
     }
@@ -107,11 +113,10 @@ lsm6dsl_write8(struct lsm6dsl *dev, uint8_t reg, uint32_t value)
     if (rc) {
         LSM6DSL_ERR("Failed to write to 0x%02X:0x%02X with value 0x%02X\n",
                     itf->si_addr, reg, value);
-        STATS_INC(g_lsm6dsl_stats, write_errors);
+        LSM6DSL_STATS_INC(write_errors);
     }
 
-    if (dev->i2c_mutex)
-    {
+    if (dev->i2c_mutex) {
         err = os_mutex_release(dev->i2c_mutex);
         assert(err == OS_OK);
     }
@@ -146,8 +151,7 @@ lsm6dsl_read8(struct lsm6dsl *dev, uint8_t reg, uint8_t *value)
         err = os_mutex_pend(dev->i2c_mutex, OS_WAIT_FOREVER);
         if (err != OS_OK)
         {
-            LSM6DSL_ERR("Mutex error=%d\n", err);
-            STATS_INC(g_lsm6dsl_stats, mutex_errors);
+            LSM6DSL_STATS_INC(mutex_errors);
             return err;
         }
     }
@@ -156,8 +160,8 @@ lsm6dsl_read8(struct lsm6dsl *dev, uint8_t reg, uint8_t *value)
     rc = hal_i2c_master_write(itf->si_num, &data_struct,
                               OS_TICKS_PER_SEC / 10, 0);
     if (rc) {
-        LSM6DSL_ERR("I2C access failed at address 0x%02X\n", itf->si_addr);
-        STATS_INC(g_lsm6dsl_stats, write_errors);
+        LSM6DSL_ERR("Wr err\n");
+        LSM6DSL_STATS_INC(write_errors);
         goto exit;
     }
 
@@ -167,8 +171,8 @@ lsm6dsl_read8(struct lsm6dsl *dev, uint8_t reg, uint8_t *value)
                              OS_TICKS_PER_SEC / 10, 1);
 
     if (rc) {
-        LSM6DSL_ERR("Failed to read from 0x%02X:0x%02X\n", itf->si_addr, reg);
-        STATS_INC(g_lsm6dsl_stats, read_errors);
+        LSM6DSL_ERR("Rd err\n");
+        LSM6DSL_STATS_INC(read_errors);
     }
 
 exit:
@@ -207,10 +211,8 @@ lsm6dsl_read_bytes(struct lsm6dsl *dev, uint8_t reg, uint8_t *buffer, uint32_t l
     if (dev->i2c_mutex)
     {
         err = os_mutex_pend(dev->i2c_mutex, OS_WAIT_FOREVER);
-        if (err != OS_OK)
-        {
-            LSM6DSL_ERR("Mutex error=%d\n", err);
-            STATS_INC(g_lsm6dsl_stats, mutex_errors);
+        if (err != OS_OK) {
+            LSM6DSL_STATS_INC(mutex_errors);
             return err;
         }
     }
@@ -219,8 +221,8 @@ lsm6dsl_read_bytes(struct lsm6dsl *dev, uint8_t reg, uint8_t *buffer, uint32_t l
     rc = hal_i2c_master_write(itf->si_num, &data_struct,
                               OS_TICKS_PER_SEC / 10, 0);
     if (rc) {
-        LSM6DSL_ERR("I2C access failed at address 0x%02X\n", itf->si_addr);
-        STATS_INC(g_lsm6dsl_stats, write_errors);
+        LSM6DSL_ERR("Wr err\n");
+        LSM6DSL_STATS_INC(write_errors);
         goto exit;
     }
 
@@ -231,13 +233,12 @@ lsm6dsl_read_bytes(struct lsm6dsl *dev, uint8_t reg, uint8_t *buffer, uint32_t l
                              OS_TICKS_PER_SEC / 10, 1);
 
     if (rc) {
-        LSM6DSL_ERR("Failed to read from 0x%02X:0x%02X\n", itf->si_addr, reg);
-        STATS_INC(g_lsm6dsl_stats, read_errors);
+        LSM6DSL_ERR("Rd err\n");
+        LSM6DSL_STATS_INC(read_errors);
     }
 
 exit:
-    if (dev->i2c_mutex)
-    {
+    if (dev->i2c_mutex) {
         err = os_mutex_release(dev->i2c_mutex);
         assert(err == OS_OK);
     }
@@ -276,7 +277,7 @@ lsm6dsl_suspend(struct os_dev *dev, os_time_t suspend_t , int force)
     struct lsm6dsl *lsm;
     lsm = (struct lsm6dsl *) dev;
     lsm6dsl_sleep(lsm);
-    LSM6DSL_INFO("lsm suspend\n");
+    LSM6DSL_DEBUG("lsm suspend\n");
     return OS_OK;
 }
 
@@ -286,7 +287,7 @@ lsm6dsl_resume(struct os_dev *dev)
     struct lsm6dsl *lsm = (struct lsm6dsl*)dev;
     lsm6dsl_reset(lsm);
     
-    LSM6DSL_INFO("lsm resumed\n");
+    LSM6DSL_DEBUG("lsm resumed\n");
     return lsm6dsl_config(lsm, &lsm->cfg);
 }
 
@@ -421,12 +422,14 @@ lsm6dsl_config(struct lsm6dsl *lsm, struct lsm6dsl_cfg *cfg)
     int rc;
     uint8_t val;
 
+#if MYNEWT_VAL(LSM6DSL_STATS_ENABLE)
     /* Init stats */
     rc = stats_init_and_reg(
         STATS_HDR(g_lsm6dsl_stats), STATS_SIZE_INIT_PARMS(g_lsm6dsl_stats,
         STATS_SIZE_32), STATS_NAME_INIT_PARMS(lsm6dsl_stats), "sen_lsm6dsl");
     SYSINIT_PANIC_ASSERT(rc == 0);
-    
+#endif
+
     rc = lsm6dsl_read8(lsm, LSM6DSL_WHO_AM_I, &val);
     if (rc) {
         return rc;

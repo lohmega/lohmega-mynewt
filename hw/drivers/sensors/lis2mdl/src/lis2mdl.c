@@ -33,6 +33,7 @@
 #include "log/log.h"
 #include <stats/stats.h>
 
+#if MYNEWT_VAL(LIS2MDL_STATS_ENABLE)
 STATS_SECT_START(lis2mdl_stats)
     STATS_SECT_ENTRY(read_errors)
     STATS_SECT_ENTRY(write_errors)
@@ -49,9 +50,16 @@ STATS_NAME_START(lis2mdl_stats)
     STATS_NAME(lis2mdl_stats, mutex_errors)
 STATS_NAME_END(lis2mdl_stats)
 
+#define LIS2MDL_STATS_INC(__X) STATS_INC(g_lis2mdl_stats, __X)
+#define LIS2MDL_STATS_INCN(__X,__N) STATS_INCN(g_lis2mdl_stats, __X, __N)
+#else
+#define LIS2MDL_STATS_INC(__X) {}
+#define LIS2MDL_STATS_INCN(__X,__N) {}
+#endif
 
 #define LOG_MODULE_LIS2MDL    (81)
 #define LIS2MDL_INFO(...)     LOG_INFO(&_log, LOG_MODULE_LIS2MDL, __VA_ARGS__)
+#define LIS2MDL_DEBUG(...)    LOG_DEBUG(&_log, LOG_MODULE_LIS2MDL, __VA_ARGS__)
 #define LIS2MDL_ERR(...)      LOG_ERROR(&_log, LOG_MODULE_LIS2MDL, __VA_ARGS__)
 static struct log _log;
 
@@ -89,13 +97,11 @@ lis2mdl_write8(struct lis2mdl *dev, uint8_t reg, uint32_t value)
         .buffer = payload
     };
 
-    if (dev->i2c_mutex)
-    {
+    if (dev->i2c_mutex) {
         err = os_mutex_pend(dev->i2c_mutex, OS_WAIT_FOREVER);
         if (err != OS_OK)
         {
-            LIS2MDL_ERR("Mutex error=%d\n", err);
-            STATS_INC(g_lis2mdl_stats, mutex_errors);
+            LIS2MDL_STATS_INC(mutex_errors);
             return err;
         }
     }
@@ -104,13 +110,11 @@ lis2mdl_write8(struct lis2mdl *dev, uint8_t reg, uint32_t value)
                               OS_TICKS_PER_SEC / 10, 1);
 
     if (rc) {
-        LIS2MDL_ERR("Failed to write to 0x%02X:0x%02X with value 0x%02X\n",
-                       itf->si_addr, reg, value);
-        STATS_INC(g_lis2mdl_stats, write_errors);
+        LIS2MDL_ERR("WR err\n");
+        LIS2MDL_STATS_INC(write_errors);
     }
 
-    if (dev->i2c_mutex)
-    {
+    if (dev->i2c_mutex) {
         err = os_mutex_release(dev->i2c_mutex);
         assert(err == OS_OK);
     }
@@ -143,10 +147,8 @@ lis2mdl_read8(struct lis2mdl *dev, uint8_t reg, uint8_t *value)
     if (dev->i2c_mutex)
     {
         err = os_mutex_pend(dev->i2c_mutex, OS_WAIT_FOREVER);
-        if (err != OS_OK)
-        {
-            LIS2MDL_ERR("Mutex error=%d\n", err);
-            STATS_INC(g_lis2mdl_stats, mutex_errors);
+        if (err != OS_OK) {
+            LIS2MDL_STATS_INC(mutex_errors);
             return err;
         }
     }
@@ -156,7 +158,7 @@ lis2mdl_read8(struct lis2mdl *dev, uint8_t reg, uint8_t *value)
                               OS_TICKS_PER_SEC / 10, 0);
     if (rc) {
         LIS2MDL_ERR("I2C access failed at address 0x%02X\n", itf->si_addr);
-        STATS_INC(g_lis2mdl_stats, write_errors);
+        LIS2MDL_STATS_INC(write_errors);
         goto exit;
     }
 
@@ -167,12 +169,11 @@ lis2mdl_read8(struct lis2mdl *dev, uint8_t reg, uint8_t *value)
 
     if (rc) {
          LIS2MDL_ERR("Failed to read from 0x%02X:0x%02X\n", itf->si_addr, reg);
-         STATS_INC(g_lis2mdl_stats, read_errors);
+         LIS2MDL_STATS_INC(read_errors);
     }
 
 exit:
-    if (dev->i2c_mutex)
-    {
+    if (dev->i2c_mutex) {
         err = os_mutex_release(dev->i2c_mutex);
         assert(err == OS_OK);
     }
@@ -203,13 +204,10 @@ lis2mdl_read_bytes(struct lis2mdl *dev, uint8_t reg, uint8_t *buffer, uint32_t l
         .buffer = &reg
     };
 
-    if (dev->i2c_mutex)
-    {
+    if (dev->i2c_mutex) {
         err = os_mutex_pend(dev->i2c_mutex, OS_WAIT_FOREVER);
-        if (err != OS_OK)
-        {
-            LIS2MDL_ERR("Mutex error=%d\n", err);
-            STATS_INC(g_lis2mdl_stats, mutex_errors);
+        if (err != OS_OK) {
+            LIS2MDL_STATS_INC(mutex_errors);
             return err;
         }
     }
@@ -218,8 +216,8 @@ lis2mdl_read_bytes(struct lis2mdl *dev, uint8_t reg, uint8_t *buffer, uint32_t l
     rc = hal_i2c_master_write(itf->si_num, &data_struct,
                               OS_TICKS_PER_SEC / 10, 0);
     if (rc) {
-        LIS2MDL_ERR("I2C access failed at address 0x%02X\n", itf->si_addr);
-        STATS_INC(g_lis2mdl_stats, write_errors);
+        LIS2MDL_ERR("RD err\n");
+        LIS2MDL_STATS_INC(write_errors);
         goto exit;
     }
 
@@ -230,13 +228,12 @@ lis2mdl_read_bytes(struct lis2mdl *dev, uint8_t reg, uint8_t *buffer, uint32_t l
                              OS_TICKS_PER_SEC / 10, 1);
 
     if (rc) {
-        LIS2MDL_ERR("Failed to read from 0x%02X:0x%02X\n", itf->si_addr, reg);
-        STATS_INC(g_lis2mdl_stats, read_errors);
+        LIS2MDL_ERR("Rd err\n");
+        LIS2MDL_STATS_INC(read_errors);
     }
 
 exit:
-    if (dev->i2c_mutex)
-    {
+    if (dev->i2c_mutex) {
         err = os_mutex_release(dev->i2c_mutex);
         assert(err == OS_OK);
     }
@@ -313,10 +310,11 @@ lis2mdl_enable_interrupt(struct lis2mdl *dev, uint8_t enable)
         return rc;
     }
 
-    if (enable)
+    if (enable) {
         reg |= 0x01;
-    else
+    } else {
         reg &= ~(0x01);
+    }
     
     return lis2mdl_write8(dev, LIS2MDL_CFG_REG_A, reg);
 }
@@ -333,10 +331,11 @@ lis2mdl_set_lpf(struct lis2mdl *dev, uint8_t enable)
         return rc;
     }
 
-    if (enable)
+    if (enable) {
         reg |= 0x01;
-    else
+    } else {
         reg &= ~(0x01);
+    }
     
     return lis2mdl_write8(dev, LIS2MDL_CFG_REG_B, reg);
 }
@@ -352,7 +351,7 @@ static int lis2mdl_suspend(struct os_dev *dev, os_time_t suspend_t , int force)
     struct lis2mdl *lis;
     lis = (struct lis2mdl *) dev;
     lis2mdl_sleep(lis);
-    LIS2MDL_INFO("Lis suspend\n");
+    LIS2MDL_DEBUG("Lis suspend\n");
     return OS_OK;
 }
 
@@ -361,7 +360,7 @@ static int lis2mdl_resume(struct os_dev *dev)
     struct lis2mdl *lis = (struct lis2mdl*)dev;
     lis2mdl_reset(lis);
     
-    LIS2MDL_INFO("Lis resume\n");
+    LIS2MDL_DEBUG("Lis resume\n");
     return lis2mdl_config(lis, &lis->cfg);
 }
 
@@ -421,12 +420,14 @@ lis2mdl_config(struct lis2mdl *lis, struct lis2mdl_cfg *cfg)
     int rc;
     uint8_t val;
 
+#if MYNEWT_VAL(LIS2MDL_STATS_ENABLE)
     /* Init stats */
     rc = stats_init_and_reg(
         STATS_HDR(g_lis2mdl_stats), STATS_SIZE_INIT_PARMS(g_lis2mdl_stats,
         STATS_SIZE_32), STATS_NAME_INIT_PARMS(lis2mdl_stats), "sen_lis2mdl");
     SYSINIT_PANIC_ASSERT(rc == 0);
-    
+#endif
+
     rc = lis2mdl_read8(lis, LIS2MDL_WHO_AM_I, &val);
     if (rc) {
         return rc;
@@ -483,8 +484,7 @@ lis2mdl_read_raw(struct lis2mdl *dev, int16_t val[])
     y = (((int16_t)payload[3] << 8) | payload[2]);
     z = (((int16_t)payload[5] << 8) | payload[4]);
 
-    if (val)
-    {
+    if (val) {
         val[0] = x;
         val[1] = y;
         val[2] = z;
@@ -530,7 +530,7 @@ lis2mdl_sensor_read(struct sensor *sensor, sensor_type_t type,
         databuf.smd.smd_z_is_valid = 1;
 
         rc = data_func(sensor, data_arg, &databuf.smd,
-             SENSOR_TYPE_MAGNETIC_FIELD);
+                       SENSOR_TYPE_MAGNETIC_FIELD);
         if (rc) {
             return rc;
         }
