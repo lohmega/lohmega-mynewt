@@ -19,8 +19,9 @@
 
 #include <adc/adc.h>
 
-#define LOG_MODULE_ADS1015 (1015)
+#define LOG_MODULE_ADS1015 (115)
 #define ADS1015_INFO(...) LOG_INFO(&_log, LOG_MODULE_ADS1015, __VA_ARGS__)
+#define ADS1015_DEBUG(...) LOG_DEBUG(&_log, LOG_MODULE_ADS1015, __VA_ARGS__)
 #define ADS1015_ERR(...) LOG_ERROR(&_log, LOG_MODULE_ADS1015, __VA_ARGS__)
 static struct log _log;
 
@@ -40,7 +41,6 @@ read_reg(struct ads1015_adc_dev_cfg *cfg, uint8_t addr, uint16_t *val)
         err = os_mutex_pend(cfg->i2c_mutex, OS_WAIT_FOREVER);
         if (err != OS_OK)
         {
-            ADS1015_ERR("Mtx err %d\n", err);
             return err;
         }
     }
@@ -48,7 +48,7 @@ read_reg(struct ads1015_adc_dev_cfg *cfg, uint8_t addr, uint16_t *val)
     /* Register write */
     int rc = hal_i2c_master_write(cfg->i2c_num, &data_struct, OS_TICKS_PER_SEC / 10, 0);
     if (rc != 0) {
-        ADS1015_ERR("Wr err 0x%02X\n", addr);
+        ADS1015_ERR("Wr err\n");
         goto exit;
     }
 
@@ -58,7 +58,7 @@ read_reg(struct ads1015_adc_dev_cfg *cfg, uint8_t addr, uint16_t *val)
     rc = hal_i2c_master_read(cfg->i2c_num, &data_struct, OS_TICKS_PER_SEC / 10, 1);
 
     if (rc != 0) {
-        ADS1015_ERR("Rd err 0x%02X\n", addr);
+        ADS1015_ERR("Rd err\n");
     }
 exit:    
     if (os_started())
@@ -84,23 +84,19 @@ write_reg(struct ads1015_adc_dev_cfg *cfg, uint8_t addr, uint16_t value)
         .address = cfg->i2c_addr, .len = 3, .buffer = payload
     };
 
-    if (os_started())
-    {
+    if (os_started()) {
         err = os_mutex_pend(cfg->i2c_mutex, OS_WAIT_FOREVER);
-        if (err != OS_OK)
-        {
-            ADS1015_ERR("Mtx err %d\n", err);
+        if (err != OS_OK) {
             return err;
         }
     }
     rc = hal_i2c_master_write(cfg->i2c_num, &data_struct, OS_TICKS_PER_SEC / 10, 1);
 
     if (rc != 0) {
-        ADS1015_ERR("Wr err 0x%02X\n", addr);
+        ADS1015_ERR("Wr err\n", addr);
     }
 
-    if (os_started())
-    {
+    if (os_started()) {
         err = os_mutex_release(cfg->i2c_mutex);
         assert(err == OS_OK);
     }
@@ -117,7 +113,6 @@ configure_channel(struct adc_dev *dev, uint8_t channel, void *arg)
     cfg = (struct ads1015_adc_dev_cfg *)dev->ad_dev.od_init_arg;
     rc = read_reg(cfg, ADS1015_REG_POINTER_CONFIG, &config);
     if (rc != 0) {
-        ADS1015_ERR("Err rd cfg\n");
         goto err;
     }
 
@@ -136,13 +131,12 @@ configure_channel(struct adc_dev *dev, uint8_t channel, void *arg)
         config |= ADS1015_REG_CONFIG_MUX_SINGLE_3;
         break;
     default:
-        ADS1015_ERR("Err ch id (>3)\n");
         return OS_EINVAL;
     }
     
     rc = write_reg(cfg, ADS1015_REG_POINTER_CONFIG, config);
     if (rc != 0) {
-        ADS1015_ERR("Err set ch\n");
+        goto err;
     }
 
     uint16_t refmv=0;
@@ -158,7 +152,8 @@ configure_channel(struct adc_dev *dev, uint8_t channel, void *arg)
         refmv = 1;
         break;
     default:
-        ADS1015_ERR("Gain gives refmv<1\n");
+        ADS1015_DEBUG("Gain gives refmv<1\n");
+        return OS_EINVAL;
         break;
     }
     
@@ -191,19 +186,20 @@ read_channel(struct adc_dev *dev, uint8_t channel, int *val)
 
     rc = write_reg(cfg, ADS1015_REG_POINTER_CONFIG, config);
     if (rc != 0) {
-        ADS1015_ERR("Err set bcfg\n");
+        ADS1015_DEBUG("Err set bcfg\n");
+        goto err;
     }
 
     /* Select channel */
     rc = configure_channel(dev, channel, 0);
     if (rc != 0) {
-        ADS1015_ERR("Err cfg ch\n");
+        ADS1015_DEBUG("Err cfg ch\n");
         goto err;
     }
     
     rc = read_reg(cfg, ADS1015_REG_POINTER_CONFIG, &config);
     if (rc != 0) {
-        ADS1015_ERR("Err read-back cfg\n");
+        ADS1015_DEBUG("Err read-back cfg\n");
         goto err;
     }
     
@@ -213,7 +209,7 @@ read_channel(struct adc_dev *dev, uint8_t channel, int *val)
     // Write config register to the ADC
     rc = write_reg(cfg, ADS1015_REG_POINTER_CONFIG, config);
     if (rc != 0) {
-        ADS1015_ERR("Err st conv\n");
+        ADS1015_DEBUG("Err st conv\n");
     }
 
     /* Wait for the conversion to complete */
@@ -222,14 +218,13 @@ read_channel(struct adc_dev *dev, uint8_t channel, int *val)
     // Read the conversion results
     rc = read_reg(cfg, ADS1015_REG_POINTER_CONVERT, &results);
     if (rc != 0) {
-        ADS1015_ERR("Err rd res\n");
+        ADS1015_DEBUG("Err rd res\n");
         goto err;
     }
 
     // Shift 12-bit results right 4 bits for the ADS1015
     results = (results >> cfg->bit_shift);
-    if (val)
-    {
+    if (val) {
         *val = results;
     }
     return 0;
@@ -296,7 +291,7 @@ ads1015_adc_hwtest(struct adc_dev *dev)
 
     if (config != (readback & 0x7FFF)) /* bit 15 is a status bit */
     {
-        ADS1015_ERR("Err cfg %x rdback %x\r\n", config, readback);
+        ADS1015_DEBUG("Err cfg %x rdback %x\r\n", config, readback);
         return 1;
     }
     return 0;
