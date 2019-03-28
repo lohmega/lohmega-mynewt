@@ -138,12 +138,18 @@ persistent_stats_load_all()
         _store_inst.load_fn((uint8_t *)&stored_total_size, sizeof(stored_total_size),
                             offset, _store_inst.load_fn_arg);
         offset += sizeof(stored_total_size);
+        // printf("ps: %s %x %x\n", c->shdr->s_name, calc_total_size, stored_total_size);
         /* Only load this stats data if it's size matches */
         if (calc_total_size == stored_total_size) {
             _store_inst.load_fn((uint8_t *)c->shdr + sizeof(struct stats_hdr), stored_total_size,
                                 offset, _store_inst.load_fn_arg);
         }
         offset += stored_total_size;
+
+        /* In case of error don't try to read outside of mem */
+        if (offset > _store_inst.max_length) {
+            break;
+        }
     }
 }
 
