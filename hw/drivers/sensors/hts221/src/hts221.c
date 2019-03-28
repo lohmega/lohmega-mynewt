@@ -390,7 +390,8 @@ static int32_t hts221_calc_rh(hts221_cal_t *cal, int32_t h_out)
     int32_t kn = cal->H1_rH_x2 - cal->H0_rH_x2;
     int32_t kd = cal->H1_T0_out - cal->H0_T0_out;
     int32_t x = h_out-cal->H0_T0_out;
-    return (((kn*x*10)/kd) + cal->H0_rH_x2*10)/2;
+    int32_t res = (((kn*x*10)/kd) + cal->H0_rH_x2*10)/2;
+    return (res > 1000) ? 1000 : res;
 }
 
 // returns temperature x 1000
@@ -434,8 +435,7 @@ hts221_read_raw(struct hts221 *dev, int32_t *temp, uint16_t *rh)
 
     /* Data in %rh*10 instead of raw-raw because we need to use
      * calibration data */
-    if(rh)
-    {
+    if(rh) {
         *rh = hts221_calc_rh(&(dev->calibration), raw);
     }
         
@@ -497,7 +497,7 @@ hts221_sensor_read(struct sensor *sensor, sensor_type_t type,
         }
         raw = ((int16_t)msb<<8) | lsb;
 
-        /* Data in C */ 
+        /* Data in % */
         databuf.srhd.shd_humid = hts221_calc_rh(&(lhb->calibration), raw);
         databuf.srhd.shd_humid /= 10.0F;
         databuf.srhd.shd_humid_is_valid = 1;
