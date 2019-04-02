@@ -268,7 +268,7 @@ lis2mdl_sleep(struct lis2mdl *dev)
 }
 
 int
-lis2mdl_set_output_rate(struct lis2mdl *dev, enum lis2mdl_output_rate rate)
+lis2mdl_set_output_rate(struct lis2mdl *dev, enum lis2mdl_output_rate rate, uint8_t low_power_mode)
 {
     int rc;
     uint8_t reg;
@@ -278,7 +278,8 @@ lis2mdl_set_output_rate(struct lis2mdl *dev, enum lis2mdl_output_rate rate)
         return rc;
     }
 
-    reg = (reg & (~0xC)) | ((uint8_t)rate << 2);
+    reg = (reg & (~0xC)) | ((uint8_t)rate << CFG_REG_A_ODR_SHIFT);
+    reg = (reg & (~(1<<CFG_REG_A_LP_SHIFT))) | (low_power_mode << CFG_REG_A_LP_SHIFT);
     return lis2mdl_write8(dev, LIS2MDL_CFG_REG_A, reg);
 }
 
@@ -351,7 +352,6 @@ static int lis2mdl_suspend(struct os_dev *dev, os_time_t suspend_t , int force)
     struct lis2mdl *lis;
     lis = (struct lis2mdl *) dev;
     lis2mdl_sleep(lis);
-    LIS2MDL_DEBUG("Lis suspend\n");
     return OS_OK;
 }
 
@@ -359,8 +359,6 @@ static int lis2mdl_resume(struct os_dev *dev)
 {
     struct lis2mdl *lis = (struct lis2mdl*)dev;
     lis2mdl_reset(lis);
-    
-    LIS2MDL_DEBUG("Lis resume\n");
     return lis2mdl_config(lis, &lis->cfg);
 }
 
@@ -420,6 +418,9 @@ lis2mdl_config(struct lis2mdl *lis, struct lis2mdl_cfg *cfg)
     int rc;
     uint8_t val;
 
+    if (cfg) {
+        memcpy(&lis->cfg, cfg, sizeof(struct lis2mdl_cfg));
+    }
 #if MYNEWT_VAL(LIS2MDL_STATS_ENABLE)
     /* Init stats */
     rc = stats_init_and_reg(
@@ -436,13 +437,12 @@ lis2mdl_config(struct lis2mdl *lis, struct lis2mdl_cfg *cfg)
         return SYS_EINVAL;
     }
 
-    rc = lis2mdl_set_output_rate(lis, cfg->output_rate);
+    rc = lis2mdl_set_output_rate(lis, lis->cfg.output_rate, lis->cfg.low_power_mode);
     if (rc) {
         return rc;
     }
-    lis->cfg.output_rate = lis->cfg.output_rate;
 
-    rc = lis2mdl_set_lpf(lis, cfg->lpf_enable);
+    rc = lis2mdl_set_lpf(lis, lis->cfg.lpf_enable);
     if (rc) {
         return rc;
     }
@@ -454,18 +454,15 @@ lis2mdl_config(struct lis2mdl *lis, struct lis2mdl_cfg *cfg)
         return rc;
     }
     
-    rc = lis2mdl_enable_interrupt(lis, cfg->int_enable);
+    rc = lis2mdl_enable_interrupt(lis, lis->cfg.int_enable);
     if (rc) {
         return rc;
     }
-    lis->cfg.int_enable = lis->cfg.int_enable;
         
-    rc = sensor_set_type_mask(&(lis->sensor), cfg->mask);
+    rc = sensor_set_type_mask(&(lis->sensor), lis->cfg.mask);
     if (rc) {
         return rc;
     }
-
-    lis->cfg.mask = cfg->mask;
 
     return 0;
 }

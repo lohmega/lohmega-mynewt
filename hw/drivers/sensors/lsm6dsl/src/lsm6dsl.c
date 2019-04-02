@@ -277,7 +277,6 @@ lsm6dsl_suspend(struct os_dev *dev, os_time_t suspend_t , int force)
     struct lsm6dsl *lsm;
     lsm = (struct lsm6dsl *) dev;
     lsm6dsl_sleep(lsm);
-    LSM6DSL_DEBUG("lsm suspend\n");
     return OS_OK;
 }
 
@@ -286,8 +285,6 @@ lsm6dsl_resume(struct os_dev *dev)
 {
     struct lsm6dsl *lsm = (struct lsm6dsl*)dev;
     lsm6dsl_reset(lsm);
-    
-    LSM6DSL_DEBUG("lsm resumed\n");
     return lsm6dsl_config(lsm, &lsm->cfg);
 }
 

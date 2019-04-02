@@ -402,6 +402,10 @@ lps22hb_config(struct lps22hb *lhb, struct lps22hb_cfg *cfg)
     int rc;
     uint8_t val;
 
+    if (cfg) {
+        memcpy(&lhb->cfg, cfg, sizeof(struct lps22hb_cfg));
+    }
+
 #if MYNEWT_VAL(HTS221_STATS_ENABLE)
     /* Init stats */
     rc = stats_init_and_reg(
@@ -418,17 +422,15 @@ lps22hb_config(struct lps22hb *lhb, struct lps22hb_cfg *cfg)
         return SYS_EINVAL;
     }
 
-    rc = lps22hb_set_output_rate(lhb, cfg->output_rate);
+    rc = lps22hb_set_output_rate(lhb, lhb->cfg.output_rate);
     if (rc) {
         return rc;
     }
-    lhb->cfg.output_rate = lhb->cfg.output_rate;
 
-    rc = lps22hb_set_lpf(lhb, cfg->lpf_cfg);
+    rc = lps22hb_set_lpf(lhb, lhb->cfg.lpf_cfg);
     if (rc) {
         return rc;
     }
-    lhb->cfg.lpf_cfg = lhb->cfg.lpf_cfg;
 	
 	// enable block data read (bit 1 == 1)
     rc = lps22hb_write8(lhb, LPS22HB_CTRL_REG1, 0x02);
@@ -436,18 +438,15 @@ lps22hb_config(struct lps22hb *lhb, struct lps22hb_cfg *cfg)
         return rc;
     }
     
-    rc = lps22hb_enable_interrupt(lhb, cfg->int_enable);
+    rc = lps22hb_enable_interrupt(lhb, lhb->cfg.int_enable);
     if (rc) {
         return rc;
     }
-    lhb->cfg.int_enable = lhb->cfg.int_enable;
         
-    rc = sensor_set_type_mask(&(lhb->sensor), cfg->mask);
+    rc = sensor_set_type_mask(&(lhb->sensor), lhb->cfg.mask);
     if (rc) {
         return rc;
     }
-
-    lhb->cfg.mask = cfg->mask;
 
     return 0;
 }

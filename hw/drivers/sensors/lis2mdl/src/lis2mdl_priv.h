@@ -53,6 +53,11 @@ enum lis2mdl_registers {
     LIS2MDL_TEMP_OUT_H_REG		    = 0x6F,
 };
 
+#define CFG_REG_A_ODR_SHIFT (2)
+#define CFG_REG_A_LP_SHIFT (4)
+#define CFG_REG_A_REBOOT_SHIFT (6)
+#define CFG_REG_A_COMP_TEMP_SHIFT (7)
+
 int lis2mdl_write8(struct lis2mdl *dev, uint8_t reg, uint32_t value);
 int lis2mdl_read8(struct lis2mdl *dev, uint8_t reg, uint8_t *value);
 int lis2mdl_read_bytes(struct lis2mdl *dev, uint8_t reg, uint8_t *buffer, uint32_t length);

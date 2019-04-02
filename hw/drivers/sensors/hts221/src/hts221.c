@@ -350,6 +350,10 @@ hts221_config(struct hts221 *lhb, struct hts221_cfg *cfg)
     int rc;
     uint8_t val;
 
+    if (cfg) {
+        memcpy(&lhb->cfg, cfg, sizeof(struct hts221_cfg));
+    }
+
 #if MYNEWT_VAL(HTS221_STATS_ENABLE)
     /* Init stats */
     rc = stats_init_and_reg(
@@ -368,18 +372,15 @@ hts221_config(struct hts221 *lhb, struct hts221_cfg *cfg)
 
     hts221_read_calibration(lhb, &(lhb->calibration));
     
-    rc = hts221_enable_interrupt(lhb, cfg->int_enable);
+    rc = hts221_enable_interrupt(lhb, lhb->cfg.int_enable);
     if (rc) {
         return rc;
     }
-    lhb->cfg.int_enable = lhb->cfg.int_enable;
         
-    rc = sensor_set_type_mask(&(lhb->sensor), cfg->mask);
+    rc = sensor_set_type_mask(&(lhb->sensor), lhb->cfg.mask);
     if (rc) {
         return rc;
     }
-
-    lhb->cfg.mask = cfg->mask;
 
     return 0;
 }
@@ -514,7 +515,7 @@ hts221_sensor_read(struct sensor *sensor, sensor_type_t type,
 
 static int
 hts221_sensor_get_config(struct sensor *sensor, sensor_type_t type,
-        struct sensor_cfg *cfg)
+                         struct sensor_cfg *cfg)
 {
     /* If the read isn't looking for accel or gyro, don't do anything. */
     if (!(type & (SENSOR_TYPE_TEMPERATURE|SENSOR_TYPE_RELATIVE_HUMIDITY))) {

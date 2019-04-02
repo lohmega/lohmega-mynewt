@@ -40,8 +40,9 @@ enum lis2mdl_output_rate {
     
 struct lis2mdl_cfg {
     enum lis2mdl_output_rate output_rate;
-    uint8_t int_enable;
-    uint8_t lpf_enable;
+    uint8_t int_enable:1;
+    uint8_t lpf_enable:1;
+    uint8_t low_power_mode:1;
     sensor_type_t mask;
 };
 
@@ -59,7 +60,7 @@ int lis2mdl_reset(struct lis2mdl *dev);
 int lis2mdl_sleep(struct lis2mdl *dev);
 int lis2mdl_set_lpf(struct lis2mdl *dev, uint8_t cfg);
 int lis2mdl_get_lpf(struct lis2mdl *dev, uint8_t *cfg);
-int lis2mdl_set_output_rate(struct lis2mdl *dev, enum lis2mdl_output_rate rate);
+int lis2mdl_set_output_rate(struct lis2mdl *dev, enum lis2mdl_output_rate rate, uint8_t low_power_mode);
 int lis2mdl_get_output_rate(struct lis2mdl *dev, enum lis2mdl_output_rate *rate);
 
 int lis2mdl_enable_interrupt(struct lis2mdl *dev, uint8_t enable);
