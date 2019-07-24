@@ -10,6 +10,7 @@
 
 #include <log/log.h>
 #include <config/config.h>
+#include "rgbpwm_nmgr_priv.h"
 
 #define  PWM_TEST_CH_CFG_INV  false
 #define  PWM_TEST_IRQ_PRIO    3
@@ -220,18 +221,17 @@ pwm_init(void)
 
     for (int i=0;i<sizeof(channels);i++) {
         top_val[i] = (uint16_t) pwm_get_top_value(pwm);
-        console_printf("[%d] init tv:%d\n", i, top_val[i]);
 
         /* setup led */
+        start_value[i] = 0;
         rc = pwm_configure_channel(pwm, i, &chan_conf[i]);
+        assert(rc == 0);
+        rc = pwm_set_duty_cycle(pwm, i, start_value[0]);
         assert(rc == 0);
     }
 
     for (int i=0;i<sizeof(channels);i++) {
-        start_value[i] = 0;
         target_value[i] = 0;
-        rc = pwm_set_duty_cycle(pwm, i, start_value[0]);
-        assert(rc == 0);
         rc = pwm_enable(pwm);
         assert(rc == 0);
     }
@@ -254,6 +254,9 @@ rgbpwm_pkg_init(void)
     pwm_init();
 #if MYNEWT_VAL(RGBPWM_CLI)
     rgbpwm_cli_register();
+#endif
+#if MYNEWT_VAL(RGBPWM_NMGR)
+    rgbpwm_nmgr_init();
 #endif
     return 0;
 }

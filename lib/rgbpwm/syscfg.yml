@@ -24,6 +24,9 @@ syscfg.defs:
     RGBPWM_CLI:
         description: 'Command line tools'
         value: 1
+    RGBPWM_NMGR:
+        description: 'Newtmgr interface'
+        value: 1
     RGBPWM_RED_LED_PIN:
         value: -1
     RGBPWM_GREEN_LED_PIN:

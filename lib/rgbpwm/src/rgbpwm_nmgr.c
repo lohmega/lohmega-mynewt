@@ -32,6 +32,7 @@
 
 #include "base64/hex.h"
 #include "rgbpwm_nmgr_priv.h"
+#include <rgbpwm/rgbpwm.h>
 
 static int rgbpwm_set(struct mgmt_cbuf *cb);
 
@@ -56,20 +57,20 @@ static struct mgmt_group pwmrgb_nmgr_group = {
 static int
 rgbpwm_set(struct mgmt_cbuf *cb)
 {
-    uint64_t colour = UINT_MAX;
-    uint64_t delay = UINT_MAX;
+    uint64_t wrgb = UINT_MAX;
+    uint64_t delay_ms = UINT_MAX;
 
     const struct cbor_attr_t off_attr[] = {
         [0] = {
             .attribute = "c",
             .type = CborAttrUnsignedIntegerType,
-            .addr.uinteger = &colour,
+            .addr.uinteger = &wrgb,
             .nodefault = true
         },
         [1] = {
             .attribute = "d",
             .type = CborAttrUnsignedIntegerType,
-            .addr.uinteger = &delay,
+            .addr.uinteger = &delay_ms,
             .nodefault = true
         },
         [2] = { 0 },
@@ -82,7 +83,20 @@ rgbpwm_set(struct mgmt_cbuf *cb)
         return MGMT_ERR_EINVAL;
     }
 
-    // rgbpwm_set(colour, delay);
+    console_printf("nmgr: setting rgb to %lX with delay %d\n", (uint32_t)wrgb, (int)delay_ms);
+    float t[4];
+    float d[4];
+
+    t[3] = (0xff&(wrgb>>24)) / ((float)0xff);
+    t[0] = (0xff&(wrgb>>16)) / ((float)0xff);
+    t[1] = (0xff&(wrgb>>8))  / ((float)0xff);
+    t[2] = (0xff&(wrgb>>0))  / ((float)0xff);
+    d[3] = delay_ms/1000.0f;
+    d[0] = delay_ms/1000.0f;
+    d[1] = delay_ms/1000.0f;
+    d[2] = delay_ms/1000.0f;
+    
+    rgbpwm_set_target(t, d, 4);
 
     g_err |= cbor_encode_text_stringz(&cb->encoder, "rc");
     g_err |= cbor_encode_int(&cb->encoder, MGMT_ERR_EOK);
@@ -94,7 +108,7 @@ rgbpwm_set(struct mgmt_cbuf *cb)
 }
 
 void
-pwmrgb_nmgr_init(void)
+rgbpwm_nmgr_init(void)
 {
     int rc;
 
