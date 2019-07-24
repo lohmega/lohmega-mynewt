@@ -28,6 +28,7 @@
 #include <hal/hal_bsp.h>
 #include <hal/hal_system.h>
 #include <hal/hal_watchdog.h>
+#include <rgbpwm/rgbpwm.h>
 #include "defs/error.h"
 #include <shell/shell.h>
 #include <console/console.h>
@@ -38,8 +39,7 @@ static int rgbpwm_cli_cmd(int argc, char **argv);
 
 #if MYNEWT_VAL(SHELL_CMD_HELP)
 const struct shell_param cmd_rgbpwm_param[] = {
-    {"rst", "system reset"},
-    {"set", "<colour, 32-bit hex, WRGB> [time to get there]"},
+    {"set", "<colour, 32-bit hex, WRGB> [ms to get there]"},
     {NULL,NULL},
 };
 
@@ -62,12 +62,28 @@ rgbpwm_cli_too_few_args(void)
     console_printf("Too few args\n");
 }
 
+static void
+set_target(uint32_t wrgb, int delay_ms)
+{
+    float t[4];
+    float d[4];
+    console_printf("setting rgb to %lX with delay %d\n", wrgb, delay_ms);
+    t[3] = (0xff&(wrgb>>24)) / ((float)0xff);
+    t[0] = (0xff&(wrgb>>16)) / ((float)0xff);
+    t[1] = (0xff&(wrgb>>8))  / ((float)0xff);
+    t[2] = (0xff&(wrgb>>0))  / ((float)0xff);
+    d[3] = delay_ms/1000.0f;
+    d[0] = delay_ms/1000.0f;
+    d[1] = delay_ms/1000.0f;
+    d[2] = delay_ms/1000.0f;
+    rgbpwm_set_target(t, d, 4);
+}
 
 static int
 rgbpwm_cli_cmd(int argc, char **argv)
 {
-    uint32_t target_rgb;
-    uint16_t delay = 0;
+    uint32_t target_wrgb;
+    uint32_t delay_ms = 0;
 
     if (!strcmp(argv[1], "set")) {
 
@@ -75,13 +91,13 @@ rgbpwm_cli_cmd(int argc, char **argv)
             rgbpwm_cli_too_few_args();
             return 0;
         }
-        target_rgb = strtol(argv[2], NULL, 16);
+        target_wrgb = strtol(argv[2], NULL, 16);
         if (argc > 3) {
-            delay = strtol(argv[2], NULL, 0);
+            delay_ms = strtol(argv[3], NULL, 0);
         }
-        console_printf("setting rgb to %lX with delay %d\n", target_rgb, delay);
+        set_target(target_wrgb, delay_ms);
     } else if (!strcmp(argv[1], "rst")) {
-        hal_system_reset();
+        // Unused
     }
     return 0;
 }

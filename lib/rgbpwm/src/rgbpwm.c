@@ -1,6 +1,7 @@
 #include <assert.h>
 #include <pwm/pwm.h>
 #include <bsp/bsp.h>
+#include <math.h>
 #include <easing/easing.h>
 #include <console/console.h>
 
@@ -10,7 +11,7 @@
 #include <log/log.h>
 #include <config/config.h>
 
-#define  PWM_TEST_CH_CFG_INV  true 
+#define  PWM_TEST_CH_CFG_INV  false
 #define  PWM_TEST_IRQ_PRIO    3
 #define  PWM_NUM_CHANNELS (4)
 
@@ -82,33 +83,97 @@ rgbpwm_conf_export(void (*export_func)(char *name, char *val),
 
 static uint8_t channels[PWM_NUM_CHANNELS] = {0,1,2,3};
 struct pwm_dev *pwm = {0};
-static uint32_t pwm_freq = 200;
-static uint32_t max_steps = 200;
-static uint16_t top_val[PWM_NUM_CHANNELS];
-static volatile uint32_t step[PWM_NUM_CHANNELS] = {0};
-static volatile bool up[PWM_NUM_CHANNELS] = {false, false, false};
-static volatile int func_num[PWM_NUM_CHANNELS] = {1,1,1};
-static easing_int_func_t easing_funct[PWM_NUM_CHANNELS] = {sine_int_io, sine_int_io, sine_int_io};
+static uint32_t pwm_freq = 1000;
+static uint32_t max_steps[PWM_NUM_CHANNELS] = {1024,1024,1024,1024};
+static uint16_t top_val[PWM_NUM_CHANNELS] = {0};
+static volatile uint32_t step[PWM_NUM_CHANNELS] = {0,0,0,0};
+static easing_int_func_t easing_funct[PWM_NUM_CHANNELS] = {sine_int_in, sine_int_in, sine_int_in, sine_int_in};
+
+/* For each channel:
+ *   Start value -> End value over delay
+ *   max_steps = f(pwm_freq, delay)
+ *   for (i=0;i<max_steps;i++) out = start + easing_funct(i, max_steps, target-start);
+ * */
+
+static int16_t start_value[PWM_NUM_CHANNELS] = {20000,20000,20000,20000};
+static int16_t target_value[PWM_NUM_CHANNELS] = {0,0,0,0};
 
 static void
 pwm_cycle_handler(void* input_arg)
 {
-    uint8_t ch = *((uint8_t*)input_arg);
-    int16_t eased;
-    eased = easing_funct[ch](step[ch], max_steps, top_val[ch]);
-    pwm_set_duty_cycle(pwm, ch, eased);
+    int16_t eased=0;
 
-    if (step[ch] >= max_steps || step[ch] <= 0) {
-        up[ch] = !up[ch];
+    for (int i = 0;i<PWM_NUM_CHANNELS;i++) {
+        if (step[i] > max_steps[i]) {
+            continue;
+        } else if (step[i] == max_steps[i]) {
+            pwm_set_duty_cycle(pwm, i, target_value[i]);
+            continue;
+        }
+
+        if (start_value[i] < target_value[i]) {
+            eased = start_value[i] +
+                easing_funct[i](step[i], max_steps[i], target_value[i] - start_value[i]);
+            pwm_set_duty_cycle(pwm, i, eased);
+        } else {
+            eased = start_value[i] -
+                easing_funct[i](step[i], max_steps[i], start_value[i] - target_value[i]);
+            pwm_set_duty_cycle(pwm, i, eased);
+        }
+
+        step[i] += 1;
     }
-
-    step[ch] += (up[ch]) ? 1 : -1;
 }
 
+static void
+pwm_end_seq_handler(void* input_arg)
+{
+    int rc;
+#if 0
+    for (int i = 0;i<PWM_NUM_CHANNELS;i++) {
+        printf("  step[%i]=%ld\n", i, step[i]);
+    }
+    printf("end_seq ()\n");
+#endif
+    rc = pwm_disable(pwm); /* Not needed but used for testing purposes. */
+    assert(rc == 0);
 
+    rc = pwm_enable(pwm);
+    assert(rc == 0);
+}
+
+int
+rgbpwm_set_target(float *value, float *delay, int len)
+{
+    for (int i=0;i<len && i< PWM_NUM_CHANNELS;i++) {
+        start_value[i] = target_value[i];
+        target_value[i] = (int16_t)roundf(value[i]*top_val[i]);
+        /* steps to take = time wanted / time_per_step */
+        step[i]=0;
+        max_steps[i] = (uint32_t)roundf(delay[i]*pwm_freq/2.0f);
+        if (max_steps[i]==0) max_steps[i] = 1;
+#if 0
+        printf("[%d] s:%d -> t:%d, m:%ld\n", i, start_value[i], target_value[i], max_steps[i]);
+        printf("  [%ld %ld]\n",
+               start_value[i] + easing_funct[i](0, max_steps[i], target_value[i] - start_value[i]),
+               start_value[i] + easing_funct[i](max_steps[i], max_steps[i], target_value[i] - start_value[i]));
+#endif
+    }
+    int rc = pwm_disable(pwm); /* Not needed but used for testing purposes. */
+    assert(rc == 0);
+
+    rc = pwm_enable(pwm);
+    assert(rc == 0);
+    return 0;
+}
+
+#if MYNEWT_VAL(RGBPWM_RED_LED_PIN) < 0 || MYNEWT_VAL(RGBPWM_GREEN_LED_PIN) < 0 || MYNEWT_VAL(RGBPWM_BLUE_LED_PIN) < 0
+#warning "please set RGBPWM_XXX_LED_PINs"
+#endif
 int
 pwm_init(void)
 {
+    int rc;
     char* device_str = MYNEWT_VAL(RGBPWM_PWM_DEVICE);
     struct pwm_chan_cfg chan_conf[] = {
         {
@@ -133,31 +198,40 @@ pwm_init(void)
         }
     };
     struct pwm_dev_cfg dev_conf = {
-            .n_cycles = pwm_freq,
+            .n_cycles = 10*pwm_freq,
             .int_prio = PWM_TEST_IRQ_PRIO,
             .cycle_handler = pwm_cycle_handler,     /* this won't work on soft_pwm */
-            .seq_end_handler = 0,
+            .seq_end_handler = pwm_end_seq_handler,
             .cycle_data = &(channels[0]),
             .seq_end_data = 0,
             .data = NULL
         };
 
-    int rc = 0;
     pwm = (struct pwm_dev *) os_dev_open(device_str, 0, NULL);
     assert(pwm);
-    pwm_configure_device(pwm, &dev_conf);
+    rc = pwm_configure_device(pwm, &dev_conf);
+    assert(rc==0);
     /* set the PWM frequency */
-    pwm_set_frequency(pwm, pwm_freq);
+    rc = pwm_set_frequency(pwm, pwm_freq);
+    console_printf("init clock:%d top_val:%d res:%d, rc:%d\n",
+                   pwm_get_clock_freq(pwm), pwm_get_top_value(pwm),
+                   pwm_get_resolution_bits(pwm), rc);
+    assert(rc>0);
 
     for (int i=0;i<sizeof(channels);i++) {
-        console_printf("[%d] init\n", i);
         top_val[i] = (uint16_t) pwm_get_top_value(pwm);
+        console_printf("[%d] init tv:%d\n", i, top_val[i]);
 
         /* setup led */
         rc = pwm_configure_channel(pwm, i, &chan_conf[i]);
         assert(rc == 0);
+    }
 
-        rc = pwm_set_duty_cycle(pwm, i, top_val[i]);
+    for (int i=0;i<sizeof(channels);i++) {
+        start_value[i] = 0;
+        target_value[i] = 0;
+        rc = pwm_set_duty_cycle(pwm, i, start_value[0]);
+        assert(rc == 0);
         rc = pwm_enable(pwm);
         assert(rc == 0);
     }
