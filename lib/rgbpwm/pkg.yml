@@ -28,7 +28,10 @@ pkg.deps:
     - "@apache-mynewt-core/sys/id"
     - "@apache-mynewt-core/sys/shell"
     - "@apache-mynewt-core/sys/config"
+    - "@apache-mynewt-core/sys/console/full"
     - "@apache-mynewt-core/mgmt/newtmgr"
+    - "@apache-mynewt-core/hw/drivers/pwm"
+    - "@apache-mynewt-core/util/easing"
 
 pkg.init:
     rgbpwm_pkg_init:    500

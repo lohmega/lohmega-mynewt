@@ -24,6 +24,18 @@
 #define RGBPWM_ERR(...)      LOG_ERROR(&_log, LOG_MODULE_RGBPWM, __VA_ARGS__)
 struct log _log;
 
+static uint8_t channels[PWM_NUM_CHANNELS] = {0,1,2,3};
+struct pwm_dev *pwm = {0};
+static uint32_t pwm_freq = 100;
+static uint32_t max_steps[PWM_NUM_CHANNELS] = {1024,1024,1024,1024};
+static uint16_t top_val[PWM_NUM_CHANNELS] = {0};
+static volatile uint32_t step[PWM_NUM_CHANNELS] = {0,0,0,0};
+static easing_int_func_t easing_funct[PWM_NUM_CHANNELS] = {sine_int_in, sine_int_in, sine_int_in, sine_int_in};
+static int16_t start_value[PWM_NUM_CHANNELS] = {0,0,0,0};
+static int16_t target_value[PWM_NUM_CHANNELS] = {0,0,0,0};
+
+
+
 /* 
  * Config 
  */
@@ -34,8 +46,8 @@ static int rgbpwm_conf_export(void (*export_func)(char *name, char *val),
   enum conf_export_tgt tgt);
 
 static struct rgbpwm_config_s {
-    char tx_power[16];
-} rgbpwm_config = {0};
+    char pwm_freq[8];
+} rgbpwm_config = {"1000"};
 
 static struct conf_handler rgbpwm_conf_cbs = {
     .ch_name = "rgbpwm",
@@ -49,8 +61,8 @@ static char *
 rgbpwm_conf_get(int argc, char **argv, char *val, int val_len_max)
 {
     if (argc == 1) {
-        if (!strcmp(argv[0], "tx_power")) {
-            return rgbpwm_config.tx_power;
+        if (!strcmp(argv[0], "pwm_freq")) {
+            return rgbpwm_config.pwm_freq;
         }
     }
     return NULL;
@@ -60,8 +72,8 @@ static int
 rgbpwm_conf_set(int argc, char **argv, char *val)
 {
     if (argc == 1) {
-        if (!strcmp(argv[0], "tx_power")) {
-            return CONF_VALUE_SET(val, CONF_STRING, rgbpwm_config.tx_power);
+        if (!strcmp(argv[0], "pwm_freq")) {
+            return CONF_VALUE_SET(val, CONF_STRING, rgbpwm_config.pwm_freq);
         }
     }
     return OS_ENOENT;
@@ -70,6 +82,30 @@ rgbpwm_conf_set(int argc, char **argv, char *val)
 static int
 rgbpwm_conf_commit(void)
 {
+    int rc;
+    conf_value_from_str(rgbpwm_config.pwm_freq, CONF_INT32, (void*)&pwm_freq, 0);
+    if (pwm==0) return 0;
+
+    /* set the PWM frequency */
+    rc = pwm_set_frequency(pwm, pwm_freq);
+    console_printf("init clock:%d top_val:%d res:%d, rc:%d\n",
+                   pwm_get_clock_freq(pwm), pwm_get_top_value(pwm),
+                   pwm_get_resolution_bits(pwm), rc);
+    assert(rc>0);
+
+    for (int i=0;i<sizeof(channels);i++) {
+        uint16_t new_top_val = (uint16_t) pwm_get_top_value(pwm);
+        if (new_top_val != top_val[i]) {
+            float target =  (float)target_value[i]/top_val[i];
+            top_val[i] = new_top_val;
+            target_value[i] = (int16_t)roundf(target*top_val[i]);
+        }
+    }
+
+    for (int i=0;i<sizeof(channels);i++) {
+        rc = pwm_enable(pwm);
+        assert(rc == 0);
+    }
     return 0;
 }
 
@@ -77,27 +113,16 @@ static int
 rgbpwm_conf_export(void (*export_func)(char *name, char *val),
   enum conf_export_tgt tgt)
 {
-    export_func("rgbpwm/tx_power", rgbpwm_config.tx_power);
+    export_func("rgbpwm/pwm_freq", rgbpwm_config.pwm_freq);
     return 0;
 }
 
-
-static uint8_t channels[PWM_NUM_CHANNELS] = {0,1,2,3};
-struct pwm_dev *pwm = {0};
-static uint32_t pwm_freq = 1000;
-static uint32_t max_steps[PWM_NUM_CHANNELS] = {1024,1024,1024,1024};
-static uint16_t top_val[PWM_NUM_CHANNELS] = {0};
-static volatile uint32_t step[PWM_NUM_CHANNELS] = {0,0,0,0};
-static easing_int_func_t easing_funct[PWM_NUM_CHANNELS] = {sine_int_in, sine_int_in, sine_int_in, sine_int_in};
 
 /* For each channel:
  *   Start value -> End value over delay
  *   max_steps = f(pwm_freq, delay)
  *   for (i=0;i<max_steps;i++) out = start + easing_funct(i, max_steps, target-start);
  * */
-
-static int16_t start_value[PWM_NUM_CHANNELS] = {20000,20000,20000,20000};
-static int16_t target_value[PWM_NUM_CHANNELS] = {0,0,0,0};
 
 static void
 pwm_cycle_handler(void* input_arg)
