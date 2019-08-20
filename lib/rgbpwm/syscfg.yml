@@ -37,3 +37,6 @@ syscfg.defs:
         value: -1
     RGBPWM_PWM_DEVICE:
         value: '"pwm0"'
+    RGBPWM_MAX_NUM_APPROVED_COLOURS:
+        description: 'Maximum number of storable approved colours'
+        value: 32

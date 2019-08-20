@@ -10,6 +10,7 @@
 
 #include <log/log.h>
 #include <config/config.h>
+#include "rgbpwm/rgbpwm.h"
 #include "rgbpwm_nmgr_priv.h"
 
 #define  PWM_TEST_CH_CFG_INV  false
@@ -25,7 +26,7 @@
 struct log _log;
 
 static uint8_t channels[PWM_NUM_CHANNELS] = {0,1,2,3};
-struct pwm_dev *pwm = {0};
+static struct pwm_dev *pwm = {0};
 static uint32_t pwm_freq = 100;
 static uint32_t max_steps[PWM_NUM_CHANNELS] = {1024,1024,1024,1024};
 static uint16_t top_val[PWM_NUM_CHANNELS] = {0};
@@ -33,8 +34,9 @@ static volatile uint32_t step[PWM_NUM_CHANNELS] = {0,0,0,0};
 static easing_int_func_t easing_funct[PWM_NUM_CHANNELS] = {sine_int_in, sine_int_in, sine_int_in, sine_int_in};
 static int16_t start_value[PWM_NUM_CHANNELS] = {0,0,0,0};
 static int16_t target_value[PWM_NUM_CHANNELS] = {0,0,0,0};
+static int16_t current_value[PWM_NUM_CHANNELS] = {0,0,0,0};
 
-
+static struct os_callout colourchange_callout;
 
 /* 
  * Config 
@@ -47,7 +49,19 @@ static int rgbpwm_conf_export(void (*export_func)(char *name, char *val),
 
 static struct rgbpwm_config_s {
     char pwm_freq[8];
-} rgbpwm_config = {"1000"};
+    char local_delay_ms[12];
+    char colours0[64];
+    char colours1[64];
+    char colours2[64];
+    char colours3[64];
+} rgbpwm_config = {
+    "1000", "35000",
+    "#ff0000,#00ff00,#0000ff,#000000",
+    "", "", ""
+};
+static int32_t g_local_colour_change_delay=0;
+static uint32_t g_approved_colours[MYNEWT_VAL(RGBPWM_MAX_NUM_APPROVED_COLOURS)] = {0};
+static int g_approved_colours_len=0;
 
 static struct conf_handler rgbpwm_conf_cbs = {
     .ch_name = "rgbpwm",
@@ -63,6 +77,16 @@ rgbpwm_conf_get(int argc, char **argv, char *val, int val_len_max)
     if (argc == 1) {
         if (!strcmp(argv[0], "pwm_freq")) {
             return rgbpwm_config.pwm_freq;
+        } else if (!strcmp(argv[0], "ldelay")) {
+            return rgbpwm_config.local_delay_ms;
+        } else if (!strcmp(argv[0], "colours0")) {
+            return rgbpwm_config.colours0;
+        } else if (!strcmp(argv[0], "colours1")) {
+            return rgbpwm_config.colours1;
+        } else if (!strcmp(argv[0], "colours2")) {
+            return rgbpwm_config.colours2;
+        } else if (!strcmp(argv[0], "colours3")) {
+            return rgbpwm_config.colours3;
         }
     }
     return NULL;
@@ -74,21 +98,66 @@ rgbpwm_conf_set(int argc, char **argv, char *val)
     if (argc == 1) {
         if (!strcmp(argv[0], "pwm_freq")) {
             return CONF_VALUE_SET(val, CONF_STRING, rgbpwm_config.pwm_freq);
-        }
+        } else if (!strcmp(argv[0], "ldelay")) {
+            return CONF_VALUE_SET(val, CONF_STRING, rgbpwm_config.local_delay_ms);
+        } else if (!strcmp(argv[0], "colours0")) {
+            return CONF_VALUE_SET(val, CONF_STRING, rgbpwm_config.colours0);
+        } else if (!strcmp(argv[0], "colours1")) {
+            return CONF_VALUE_SET(val, CONF_STRING, rgbpwm_config.colours1);
+        } else if (!strcmp(argv[0], "colours2")) {
+            return CONF_VALUE_SET(val, CONF_STRING, rgbpwm_config.colours2);
+        } else if (!strcmp(argv[0], "colours3")) {
+            return CONF_VALUE_SET(val, CONF_STRING, rgbpwm_config.colours3);
+        } 
     }
     return OS_ENOENT;
+}
+
+static int
+extract_colours(char* s, int len, uint32_t *colours, int maxnum)
+{
+    char tmp[len];
+    memcpy(tmp, s, len);
+    char* rest = tmp;
+    char* token = strtok_r(tmp, ",", &rest);
+    int c = 0;
+    // Keep printing tokens while one of the 
+    // delimiters present in str[]. 
+    while (token != NULL) {
+        if (!strchr(token, '#')) {
+            goto next;
+        }
+        char *p = token;
+        while(*p != '#') {
+            p++;
+        }
+        p++;
+        uint32_t v = strtol(p, NULL, 16);
+        console_printf("  [%d] '%s' -> #%08lX\n", c, p, v);
+        if (c >= maxnum) {
+            return c;
+        }
+        colours[c] = v;
+        c++;
+    next:
+        token = strtok_r(rest, ",", &rest);
+    }
+    return c;
 }
 
 static int
 rgbpwm_conf_commit(void)
 {
     int rc;
-    conf_value_from_str(rgbpwm_config.pwm_freq, CONF_INT32, (void*)&pwm_freq, 0);
+
     if (pwm==0) return 0;
+    conf_value_from_str(rgbpwm_config.pwm_freq, CONF_INT32, (void*)&pwm_freq, 0);
+    conf_value_from_str(rgbpwm_config.local_delay_ms, CONF_INT32,
+                        (void*)&g_local_colour_change_delay, 0);
 
     /* set the PWM frequency */
     rc = pwm_set_frequency(pwm, pwm_freq);
-    console_printf("init clock:%d top_val:%d res:%d, rc:%d\n",
+    console_printf("# init clock:%d top_val:%d res:%d, rc:%d\n",
                    pwm_get_clock_freq(pwm), pwm_get_top_value(pwm),
                    pwm_get_resolution_bits(pwm), rc);
     assert(rc>0);
@@ -106,6 +175,21 @@ rgbpwm_conf_commit(void)
         rc = pwm_enable(pwm);
         assert(rc == 0);
     }
+
+    /* Interpret colours from colours strings */
+    int tot_spots = sizeof(g_approved_colours)/sizeof(g_approved_colours[0]);
+    int idx = 0;
+    idx += extract_colours(rgbpwm_config.colours0, sizeof(rgbpwm_config.colours0), &g_approved_colours[idx], tot_spots-idx);
+    idx += extract_colours(rgbpwm_config.colours1, sizeof(rgbpwm_config.colours1), &g_approved_colours[idx], tot_spots-idx);
+    idx += extract_colours(rgbpwm_config.colours2, sizeof(rgbpwm_config.colours2), &g_approved_colours[idx], tot_spots-idx);
+    idx += extract_colours(rgbpwm_config.colours3, sizeof(rgbpwm_config.colours3), &g_approved_colours[idx], tot_spots-idx);
+    g_approved_colours_len = idx;
+    console_printf("# init %d approved colours\n", idx);
+
+    if (g_local_colour_change_delay) {
+        os_callout_reset(&colourchange_callout, OS_TICKS_PER_SEC);
+    }
+
     return 0;
 }
 
@@ -114,7 +198,42 @@ rgbpwm_conf_export(void (*export_func)(char *name, char *val),
   enum conf_export_tgt tgt)
 {
     export_func("rgbpwm/pwm_freq", rgbpwm_config.pwm_freq);
+    export_func("rgbpwm/ldelay", rgbpwm_config.local_delay_ms);
+    export_func("rgbpwm/colours0", rgbpwm_config.colours0);
+    export_func("rgbpwm/colours1", rgbpwm_config.colours1);
+    export_func("rgbpwm/colours2", rgbpwm_config.colours2);
+    export_func("rgbpwm/colours3", rgbpwm_config.colours3);
     return 0;
+}
+
+uint32_t
+rgbpwm_get_random_approved_colour(void)
+{
+    return g_approved_colours[rand()%g_approved_colours_len];
+}
+
+static void
+local_change_timer_ev_cb(struct os_event *ev)
+{
+    /*  */
+    float t[4];
+    float d[4];
+    uint32_t wrgb = rgbpwm_get_random_approved_colour();
+    int32_t delay_ms = g_local_colour_change_delay;
+
+    t[3] = (0xff&(wrgb>>24)) / ((float)0xff);
+    t[0] = (0xff&(wrgb>>16)) / ((float)0xff);
+    t[1] = (0xff&(wrgb>>8))  / ((float)0xff);
+    t[2] = (0xff&(wrgb>>0))  / ((float)0xff);
+    d[3] = delay_ms/1000.0f;
+    d[0] = delay_ms/1000.0f;
+    d[1] = delay_ms/1000.0f;
+    d[2] = delay_ms/1000.0f;
+
+    rgbpwm_set_target(t, d, 4);
+    if (g_local_colour_change_delay) {
+        os_callout_reset(&colourchange_callout, (OS_TICKS_PER_SEC*delay_ms)/1000);
+    }
 }
 
 
@@ -127,8 +246,6 @@ rgbpwm_conf_export(void (*export_func)(char *name, char *val),
 static void
 pwm_cycle_handler(void* input_arg)
 {
-    int16_t eased=0;
-
     for (int i = 0;i<PWM_NUM_CHANNELS;i++) {
         if (step[i] > max_steps[i]) {
             continue;
@@ -138,13 +255,13 @@ pwm_cycle_handler(void* input_arg)
         }
 
         if (start_value[i] < target_value[i]) {
-            eased = start_value[i] +
+            current_value[i] = start_value[i] +
                 easing_funct[i](step[i], max_steps[i], target_value[i] - start_value[i]);
-            pwm_set_duty_cycle(pwm, i, eased);
+            pwm_set_duty_cycle(pwm, i, current_value[i]);
         } else {
-            eased = start_value[i] -
+            current_value[i] = start_value[i] -
                 easing_funct[i](step[i], max_steps[i], start_value[i] - target_value[i]);
-            pwm_set_duty_cycle(pwm, i, eased);
+            pwm_set_duty_cycle(pwm, i, current_value[i]);
         }
 
         step[i] += 1;
@@ -172,7 +289,8 @@ int
 rgbpwm_set_target(float *value, float *delay, int len)
 {
     for (int i=0;i<len && i< PWM_NUM_CHANNELS;i++) {
-        start_value[i] = target_value[i];
+        
+        start_value[i] = current_value[i];
         target_value[i] = (int16_t)roundf(value[i]*top_val[i]);
         /* steps to take = time wanted / time_per_step */
         step[i]=0;
@@ -191,6 +309,18 @@ rgbpwm_set_target(float *value, float *delay, int len)
     rc = pwm_enable(pwm);
     assert(rc == 0);
     return 0;
+}
+
+void
+rgbpwm_stop_local_change_timer()
+{
+    os_callout_stop(&colourchange_callout);
+}
+
+void
+rgbpwm_delay_local_change_timer(int ms)
+{
+    os_callout_reset(&colourchange_callout, (OS_TICKS_PER_SEC*ms)/1000);
 }
 
 #if MYNEWT_VAL(RGBPWM_RED_LED_PIN) < 0 || MYNEWT_VAL(RGBPWM_GREEN_LED_PIN) < 0 || MYNEWT_VAL(RGBPWM_BLUE_LED_PIN) < 0
@@ -239,9 +369,6 @@ pwm_init(void)
     assert(rc==0);
     /* set the PWM frequency */
     rc = pwm_set_frequency(pwm, pwm_freq);
-    console_printf("init clock:%d top_val:%d res:%d, rc:%d\n",
-                   pwm_get_clock_freq(pwm), pwm_get_top_value(pwm),
-                   pwm_get_resolution_bits(pwm), rc);
     assert(rc>0);
 
     for (int i=0;i<sizeof(channels);i++) {
@@ -272,10 +399,14 @@ rgbpwm_pkg_init(void)
 {
     int rc;
     /* Init log and Config */
+
     log_register("rgb", &_log, &log_console_handler, NULL, LOG_SYSLEVEL);
     rc = conf_register(&rgbpwm_conf_cbs);
     SYSINIT_PANIC_ASSERT(rc == 0);
 
+    os_callout_init(&colourchange_callout, os_eventq_dflt_get(),
+                    local_change_timer_ev_cb, NULL);
+    
     pwm_init();
 #if MYNEWT_VAL(RGBPWM_CLI)
     rgbpwm_cli_register();

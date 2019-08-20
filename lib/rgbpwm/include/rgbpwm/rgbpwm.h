@@ -5,8 +5,11 @@
 extern "C" {
 #endif
 
-// int uwb_nmgr_tx(uint16_t src, uint16_t dst, uint16_t type, struct os_mbuf *om);
 int rgbpwm_set_target(float *value, float *delay, int len);
+void rgbpwm_delay_local_change_timer(int ms);
+void rgbpwm_stop_local_change_timer();
+uint32_t rgbpwm_get_random_approved_colour(void);
+struct os_mbuf* rgbpwm_get_txcolour_mbuf(uint32_t colour, uint32_t delay);
     
 #ifdef __cplusplus
 }

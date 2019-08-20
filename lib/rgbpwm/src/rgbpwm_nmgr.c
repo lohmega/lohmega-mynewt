@@ -24,8 +24,13 @@
 #include "os/mynewt.h"
 #include "hal/hal_bsp.h"
 #include "flash_map/flash_map.h"
-#include "cborattr/cborattr.h"
 #include "mgmt/mgmt.h"
+
+#include <tinycbor/cbor.h>
+#include <tinycbor/cborjson.h>
+#include <tinycbor/cbor_mbuf_writer.h>
+#include <tinycbor/cbor_mbuf_reader.h>
+#include <cborattr/cborattr.h>
 
 #include <console/console.h>
 #include <hal/hal_system.h>
@@ -62,13 +67,13 @@ rgbpwm_set(struct mgmt_cbuf *cb)
 
     const struct cbor_attr_t off_attr[] = {
         [0] = {
-            .attribute = "c",
+            .attribute = "colour",
             .type = CborAttrUnsignedIntegerType,
             .addr.uinteger = &wrgb,
             .nodefault = true
         },
         [1] = {
-            .attribute = "d",
+            .attribute = "delay",
             .type = CborAttrUnsignedIntegerType,
             .addr.uinteger = &delay_ms,
             .nodefault = true
@@ -83,7 +88,8 @@ rgbpwm_set(struct mgmt_cbuf *cb)
         return MGMT_ERR_EINVAL;
     }
 
-    console_printf("nmgr: setting rgb to %lX with delay %d\n", (uint32_t)wrgb, (int)delay_ms);
+    console_printf("# nmgr: setting rgb to %lX with delay %d\n",
+                   (uint32_t)wrgb, (int)delay_ms);
     float t[4];
     float d[4];
 
@@ -95,7 +101,8 @@ rgbpwm_set(struct mgmt_cbuf *cb)
     d[0] = delay_ms/1000.0f;
     d[1] = delay_ms/1000.0f;
     d[2] = delay_ms/1000.0f;
-    
+
+    rgbpwm_delay_local_change_timer(delay_ms * 4);
     rgbpwm_set_target(t, d, 4);
 
     g_err |= cbor_encode_text_stringz(&cb->encoder, "rc");
@@ -106,6 +113,64 @@ rgbpwm_set(struct mgmt_cbuf *cb)
     }
     return 0;
 }
+
+struct os_mbuf*
+rgbpwm_get_txcolour_mbuf(uint32_t colour, uint32_t delay)
+{
+    int rc;
+    CborEncoder payload_enc;
+    struct mgmt_cbuf n_b;
+    struct cbor_mbuf_writer writer;
+    struct nmgr_hdr *hdr;
+    struct os_mbuf *rsp;
+    
+    rsp = os_msys_get_pkthdr(0, 0);
+
+    if (!rsp) {
+        return 0;
+    }
+
+    hdr = (struct nmgr_hdr *) os_mbuf_extend(rsp, sizeof(struct nmgr_hdr));
+    if (!hdr) {
+        goto exit_err;
+    }
+    hdr->nh_len = 0;
+    hdr->nh_flags = 0;
+    hdr->nh_op = NMGR_OP_WRITE;
+    hdr->nh_group = htons(MGMT_GROUP_ID_RGBPWM);
+    hdr->nh_seq = 0;
+    hdr->nh_id = 0;
+
+    cbor_mbuf_writer_init(&writer, rsp);
+    cbor_encoder_init(&n_b.encoder, &writer.enc, 0);
+    rc = cbor_encoder_create_map(&n_b.encoder, &payload_enc, CborIndefiniteLength);
+    if (rc != 0) {
+        goto exit_err;
+    }
+
+    struct mgmt_cbuf *cb = &n_b;
+    
+    CborError g_err = CborNoError;
+
+    g_err |= cbor_encode_text_stringz(&payload_enc, "colour");
+    g_err |= cbor_encode_uint(&payload_enc, colour);
+    g_err |= cbor_encode_text_stringz(&payload_enc, "delay");
+    g_err |= cbor_encode_uint(&payload_enc, delay);
+    
+    rc = cbor_encoder_close_container(&cb->encoder, &payload_enc);
+    if (rc != 0) {
+        goto exit_err;
+    }
+    hdr->nh_len += cbor_encode_bytes_written(&cb->encoder);
+    hdr->nh_len = htons(hdr->nh_len);
+
+    return rsp;
+exit_err:
+    console_printf("something went wrong\n");
+    os_mbuf_free_chain(rsp);
+    return 0;
+}
+
 
 void
 rgbpwm_nmgr_init(void)

@@ -33,6 +33,14 @@
 #include <shell/shell.h>
 #include <console/console.h>
 
+#if MYNEWT_VAL(DW1000_DEVICE_0)
+#include <dw1000/dw1000_dev.h>
+#include <dw1000/dw1000_hal.h>
+#if MYNEWT_VAL(NMGR_UWB_ENABLED)
+#include <nmgr_uwb/nmgr_uwb.h> 
+#endif
+#endif
+
 #if MYNEWT_VAL(RGBPWM_CLI)
 
 static int rgbpwm_cli_cmd(int argc, char **argv);
@@ -40,6 +48,7 @@ static int rgbpwm_cli_cmd(int argc, char **argv);
 #if MYNEWT_VAL(SHELL_CMD_HELP)
 const struct shell_param cmd_rgbpwm_param[] = {
     {"set", "<colour, 32-bit hex, WRGB> [ms to get there]"},
+    {"tx", "<addr> <colour, 32-bit hex, WRGB> [ms to get there]"},
     {NULL,NULL},
 };
 
@@ -82,6 +91,7 @@ set_target(uint32_t wrgb, int delay_ms)
 static int
 rgbpwm_cli_cmd(int argc, char **argv)
 {
+    uint16_t addr;
     uint32_t target_wrgb;
     uint32_t delay_ms = 0;
 
@@ -96,6 +106,30 @@ rgbpwm_cli_cmd(int argc, char **argv)
             delay_ms = strtol(argv[3], NULL, 0);
         }
         set_target(target_wrgb, delay_ms);
+    } else if (!strcmp(argv[1], "tx")) {
+
+        if (argc < 4) {
+            rgbpwm_cli_too_few_args();
+            return 0;
+        }
+        addr = strtol(argv[2], NULL, 16);
+        target_wrgb = strtol(argv[3], NULL, 16);
+        if (argc > 4) {
+            delay_ms = strtol(argv[4], NULL, 0);
+        }
+        struct os_mbuf *om = rgbpwm_get_txcolour_mbuf(target_wrgb, delay_ms);
+        if (!om) return 0;
+        nmgr_uwb_instance_t *nmgruwb = (nmgr_uwb_instance_t*)dw1000_mac_find_cb_inst_ptr(hal_dw1000_inst(0), DW1000_NMGR_UWB);
+
+        if (!nmgruwb) return 0;
+#if MYNEWT_VAL(NMGR_UWB_ENABLED)
+        uwb_nmgr_queue_tx(nmgruwb, addr, NMGR_CMD_STATE_SEND, om);
+#else
+        console_printf("ERR, no UWB tranceiver present\n");
+#endif
+        if (addr == 0xffff) {
+            set_target(target_wrgb, delay_ms);
+        }
     } else if (!strcmp(argv[1], "rst")) {
         // Unused
     }
