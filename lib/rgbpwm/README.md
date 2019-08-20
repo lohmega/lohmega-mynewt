@@ -60,6 +60,22 @@ config commit                 # Activate changed value
 config save                   # Save in permanent memory
 ```
 
+## Setting the role
+
+Only one board can be the Master of the network, the others are slaves.
+By default a board is a slave that connects to a local master. A slave
+has the uwb/role parameter set to 0x0 whilst the master has it set to 0x7.
+
+To promote a board to a master:
+
+```
+config uwb/role 0x7
+config save
+reset
+```
+
+The last command is to restart the board as it's only at boot it will
+set itself up for the correct role. 
 
 ## Example: To the pwm frequency on the local board:
 
@@ -95,4 +111,10 @@ config rgbpwm/colours1 #110101,#120202,#050505,#eF00FF,#3ECC99,#323456,#f87654,#
 config commit   # Activate
 config save     # Save in permanent memory
 config dump     # Show current settings
+```
+
+## Listing the active nodes in the network
+
+```
+panm list
 ```
