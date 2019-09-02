@@ -115,6 +115,15 @@ config save     # Save in permanent memory
 config dump     # Show current settings
 ```
 
+To empty a set of colours set the value to "0", eg:
+
+```
+config rgbpwm/colours1 0
+config commit
+config save
+```
+
+
 ## Updating the configuration globally in the network
 
 If you've set the colours, pwm frequency etc on one node and want all the other nodes
@@ -131,6 +140,21 @@ rgb txcfg <address, 0xffff=broadcast>
 009012 # txcfg: 'colours1' -> '#aabbcc,#ddeeff'
 009012 # txcfg: 'colours2' -> ''
 009012 # txcfg: 'colours3' -> ''
+```
+
+To read or change one setting on a remote node:
+
+```
+remcfg <address> <parameter> [value]
+
+# Example 1, read remote value:
+remcfg 0xd18d rgbpwm/colours0
+053080 compat> # Reply from 0xd18d: rc:0 value:'#123456,#456789'
+
+# Example 2, write remote value
+remcfg 0xd18d rgbpwm/colours0 #123456,#456789
+060761 # txcfg: 'rgbpwm/colours0' -> '#123456,#456789'
+060761 compat> # Reply from 0xd18d: rc:0, Write OK
 ```
 
 ## Listing the active nodes in the network
