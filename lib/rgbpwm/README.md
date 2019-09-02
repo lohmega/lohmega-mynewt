@@ -5,7 +5,7 @@
 nrfjprog -f NRF52 -e;nrfjprog -f NRF52 --reset --program rgbpwm_fullmem.hex
 ```
 
-Open uart with 115200-8n1. Commands avaiable include:  
+Open uart with 115200-8n1. Commands available include:  
 
 ## Change local colour
 
