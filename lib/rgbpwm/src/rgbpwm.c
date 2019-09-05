@@ -58,21 +58,24 @@ static struct rgbpwm_config_s {
     char pwm_freq[8];
     char local_delay_ms[12];
     char master_delay_ms[12];
+    char colour_change_duration_ms[12];
     char colours0[64];
     char colours1[64];
     char colours2[64];
     char colours3[64];
 } rgbpwm_config = {
     "0x0", "0x0", "1000",         /* Verbose, pwm freq, mode */
-    "35000", "0",               /* local delay, master delay */
+    "600000", "0", "300000",      /* local delay(10min), master delay, change duration(5min) */
     "#ff0000,#00ff00,#0000ff,#000000",
     "", "", ""
 };
 static struct rgbpwm_inst_s {
     uint16_t verbose;
     uint16_t mode;
+    uint8_t colour_index;       /* Only used in sequential mode */
     int32_t local_colour_change_delay;
     int32_t master_colour_change_delay;
+    int32_t colour_change_duration;
     uint32_t approved_colours[MYNEWT_VAL(RGBPWM_MAX_NUM_APPROVED_COLOURS)];
     int approved_colours_len;
     struct os_callout local_colour_change_callout;
@@ -101,6 +104,8 @@ rgbpwm_conf_get(int argc, char **argv, char *val, int val_len_max)
             return rgbpwm_config.local_delay_ms;
         } else if (!strcmp(argv[0], "master_delay")) {
             return rgbpwm_config.master_delay_ms;
+        } else if (!strcmp(argv[0], "change_duration")) {
+            return rgbpwm_config.colour_change_duration_ms;
         } else if (!strcmp(argv[0], "colours0")) {
             return rgbpwm_config.colours0;
         } else if (!strcmp(argv[0], "colours1")) {
@@ -128,6 +133,8 @@ rgbpwm_conf_set(int argc, char **argv, char *val)
             return CONF_VALUE_SET(val, CONF_STRING, rgbpwm_config.local_delay_ms);
         } else if (!strcmp(argv[0], "master_delay")) {
             return CONF_VALUE_SET(val, CONF_STRING, rgbpwm_config.master_delay_ms);
+        } else if (!strcmp(argv[0], "change_duration")) {
+            return CONF_VALUE_SET(val, CONF_STRING, rgbpwm_config.colour_change_duration_ms);
         } else if (!strcmp(argv[0], "colours0")) {
             return CONF_VALUE_SET(val, CONF_STRING, rgbpwm_config.colours0);
         } else if (!strcmp(argv[0], "colours1")) {
@@ -188,6 +195,8 @@ rgbpwm_conf_commit(void)
                         (void*)&rgbpwm_inst.local_colour_change_delay, 0);
     conf_value_from_str(rgbpwm_config.master_delay_ms, CONF_INT32,
                         (void*)&rgbpwm_inst.master_colour_change_delay, 0);
+    conf_value_from_str(rgbpwm_config.colour_change_duration_ms, CONF_INT32,
+                        (void*)&rgbpwm_inst.colour_change_duration, 0);
 
     /* set the PWM frequency */
     rc = pwm_set_frequency(pwm, pwm_freq);
@@ -237,13 +246,14 @@ rgbpwm_conf_commit(void)
 
 static int
 rgbpwm_conf_export(void (*export_func)(char *name, char *val),
-  enum conf_export_tgt tgt)
+                   enum conf_export_tgt tgt)
 {
     export_func("rgbpwm/pwm_freq", rgbpwm_config.pwm_freq);
     export_func("rgbpwm/verbose", rgbpwm_config.verbose);
     export_func("rgbpwm/mode", rgbpwm_config.mode);
     export_func("rgbpwm/local_delay", rgbpwm_config.local_delay_ms);
     export_func("rgbpwm/master_delay", rgbpwm_config.master_delay_ms);
+    export_func("rgbpwm/change_duration", rgbpwm_config.colour_change_duration_ms);
     export_func("rgbpwm/colours0", rgbpwm_config.colours0);
     export_func("rgbpwm/colours1", rgbpwm_config.colours1);
     export_func("rgbpwm/colours2", rgbpwm_config.colours2);
@@ -257,14 +267,33 @@ rgbpwm_get_random_approved_colour(void)
     return rgbpwm_inst.approved_colours[rand()%rgbpwm_inst.approved_colours_len];
 }
 
+uint32_t
+rgbpwm_get_sequential_approved_colour(void)
+{
+    return rgbpwm_inst.approved_colours[(rgbpwm_inst.colour_index++)%rgbpwm_inst.approved_colours_len];
+}
+
+
+
 static void
 local_change_timer_ev_cb(struct os_event *ev)
 {
-    int32_t delay_ms = rgbpwm_inst.local_colour_change_delay;
-    rgbpwm_set_random(delay_ms);
+    int32_t change_duration = rgbpwm_inst.colour_change_duration;
+    uint64_t wrgb;
+    if (!change_duration) {
+        change_duration = rgbpwm_inst.local_colour_change_delay;
+    }
+
+    if (rgbpwm_inst.mode & RGBPWM_MODE_SEQUENTIAL) {
+        wrgb = rgbpwm_get_sequential_approved_colour();
+    } else {
+        wrgb = rgbpwm_get_random_approved_colour();
+    }
+    rgbpwm_set_target32(wrgb, change_duration);
 
     if (rgbpwm_inst.local_colour_change_delay) {
-        os_callout_reset(&rgbpwm_inst.local_colour_change_callout, (OS_TICKS_PER_SEC*delay_ms)/1000);
+        os_callout_reset(&rgbpwm_inst.local_colour_change_callout,
+                         (OS_TICKS_PER_SEC*rgbpwm_inst.local_colour_change_delay)/1000);
     }
 }
 
@@ -281,19 +310,30 @@ master_timer_ev_cb(struct os_event *ev)
     /* Prevent local timer from triggering in the meantime */
     rgbpwm_delay_local_change_timer(rgbpwm_inst.master_colour_change_delay *2);
 
-    if (rgbpwm_inst.mode & RGBPWM_MODE_COMMON_RANDOM) {
+    if (rgbpwm_inst.mode & RGBPWM_MODE_COMMON) {
         wrgb = rgbpwm_get_random_approved_colour();
-        if (rgbpwm_inst.verbose&RGBPWM_VERBOSE_MASTER) {
-            console_printf("# master: common target #%08llx\n", wrgb);
+        if (rgbpwm_inst.verbose&RGBPWM_VERBOSE_MASTER &&
+            !(rgbpwm_inst.mode & RGBPWM_MODE_SEQUENTIAL)) {
+            console_printf("# master: common rng target #%08llx\n", wrgb);
         }
-    } else {
+    }
+    if (rgbpwm_inst.mode & RGBPWM_MODE_SEQUENTIAL) {
+        wrgb = rgbpwm_get_sequential_approved_colour();
+        if (rgbpwm_inst.verbose&RGBPWM_VERBOSE_MASTER) {
+            console_printf("# master: common seq target #%08llx\n", wrgb);
+        }
+    }
+
+    if (wrgb == RGBPWM_RANDOM) {
         if (rgbpwm_inst.verbose&RGBPWM_VERBOSE_MASTER) {
             console_printf("# master: random target \n");
         }
     }
+    /* If the change duration is zero it will fall back to the local
+     * node's local_delay */
+    int32_t change_duration = rgbpwm_inst.colour_change_duration;
 
-    struct os_mbuf *om = rgbpwm_get_txcolour_mbuf(wrgb,
-                                                  rgbpwm_inst.master_colour_change_delay);
+    struct os_mbuf *om = rgbpwm_get_txcolour_mbuf(wrgb, change_duration);
     if (!om) {
         return;
     }
@@ -320,11 +360,15 @@ master_timer_ev_cb(struct os_event *ev)
         os_time_delay(1);
     }
 
+    if (!change_duration) {
+        change_duration = rgbpwm_inst.master_colour_change_delay;
+    }
+
     /* Local change synced with network change */
-    if (rgbpwm_inst.mode & RGBPWM_MODE_COMMON_RANDOM) {
-        rgbpwm_set_target32(wrgb, rgbpwm_inst.master_colour_change_delay);
+    if (wrgb == RGBPWM_RANDOM) {
+        rgbpwm_set_random(change_duration);
     } else {
-        rgbpwm_set_random(rgbpwm_inst.master_colour_change_delay);
+        rgbpwm_set_target32(wrgb, change_duration);
     }
 
 }
@@ -411,6 +455,13 @@ rgbpwm_set_target32(uint32_t wrgb, int32_t delay_ms)
     float t[4];
     float d[4];
 
+    if (delay_ms == 0) {
+        delay_ms = rgbpwm_inst.colour_change_duration;
+    }
+    if (delay_ms == 0) {
+        delay_ms = rgbpwm_inst.local_colour_change_delay;
+    }
+    
     t[3] = (0xff&(wrgb>>24)) / ((float)0xff);
     t[0] = (0xff&(wrgb>>16)) / ((float)0xff);
     t[1] = (0xff&(wrgb>>8))  / ((float)0xff);

@@ -12,7 +12,8 @@ extern "C" {
 #define RGBPWM_VERBOSE_MASTER (0x0004)
 
 #define RGBPWM_MODE_RANDOM        (0x0000)
-#define RGBPWM_MODE_COMMON_RANDOM (0x0001)
+#define RGBPWM_MODE_COMMON        (0x0001)
+#define RGBPWM_MODE_SEQUENTIAL    (0x0002)
 
 int rgbpwm_set_target(float *value, float *delay, int len);
 void rgbpwm_set_target32(uint32_t wrgb, int32_t delay_ms);

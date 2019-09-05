@@ -64,8 +64,6 @@ static struct mgmt_group pwmrgb_nmgr_group = {
 static int
 rgbpwm_set(struct mgmt_cbuf *cb)
 {
-    float t[4];
-    float d[4];
     uint64_t wrgb = 0xFFFFFFFFFFFFFFFFULL;
     uint64_t delay_ms = UINT_MAX;
 
@@ -97,18 +95,9 @@ rgbpwm_set(struct mgmt_cbuf *cb)
         wrgb = rgbpwm_get_random_approved_colour();
     }
 
-    t[3] = (0xff&(wrgb>>24)) / ((float)0xff);
-    t[0] = (0xff&(wrgb>>16)) / ((float)0xff);
-    t[1] = (0xff&(wrgb>>8))  / ((float)0xff);
-    t[2] = (0xff&(wrgb>>0))  / ((float)0xff);
-    d[3] = delay_ms/1000.0f;
-    d[0] = delay_ms/1000.0f;
-    d[1] = delay_ms/1000.0f;
-    d[2] = delay_ms/1000.0f;
-
     /* Reset the local timer */
     rgbpwm_delay_local_change_timer(0);
-    rgbpwm_set_target(t, d, 4);
+    rgbpwm_set_target32(wrgb, delay_ms);
 
     g_err |= cbor_encode_text_stringz(&cb->encoder, "rc");
     g_err |= cbor_encode_int(&cb->encoder, MGMT_ERR_EOK);
