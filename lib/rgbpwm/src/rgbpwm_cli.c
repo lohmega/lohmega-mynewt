@@ -33,9 +33,8 @@
 #include <shell/shell.h>
 #include <console/console.h>
 
-#if MYNEWT_VAL(DW1000_DEVICE_0)
-#include <dw1000/dw1000_dev.h>
-#include <dw1000/dw1000_hal.h>
+#if MYNEWT_VAL(UWB_DEVICE_0)
+#include <uwb/uwb.h>
 #if MYNEWT_VAL(NMGR_UWB_ENABLED)
 #include <nmgr_uwb/nmgr_uwb.h> 
 #endif
@@ -107,8 +106,8 @@ rgbpwm_cli_cmd(int argc, char **argv)
         }
         struct os_mbuf *om = rgbpwm_get_txcolour_mbuf(target_wrgb, delay_ms);
         if (!om) return 0;
-#if MYNEWT_VAL(DW1000_DEVICE_0)
-        nmgr_uwb_instance_t *nmgruwb = (nmgr_uwb_instance_t*)dw1000_mac_find_cb_inst_ptr(hal_dw1000_inst(0), DW1000_NMGR_UWB);
+#if MYNEWT_VAL(UWB_DEVICE_0)
+        nmgr_uwb_instance_t *nmgruwb = (nmgr_uwb_instance_t*)uwb_mac_find_cb_inst_ptr(uwb_dev_idx_lookup(0), UWBEXT_NMGR_UWB);
 
         if (!nmgruwb) return 0;
         int start_num_free = os_msys_num_free();
@@ -119,7 +118,7 @@ rgbpwm_cli_cmd(int argc, char **argv)
 #endif // MYNEWT_VAL(NMGR_UWB_ENABLED)
 #else 
         console_printf("ERR, no UWB tranceiver present\n");
-#endif // MYNEWT_VAL(DW1000_DEVICE_0)
+#endif // MYNEWT_VAL(UWB_DEVICE_0)
 
         /* Also change local colour if this is a broadcast */
         if (addr == 0xffff) {
@@ -146,8 +145,8 @@ rgbpwm_cli_cmd(int argc, char **argv)
             if (!om) {
                 break;
             }
-#if MYNEWT_VAL(DW1000_DEVICE_0)
-            nmgr_uwb_instance_t *nmgruwb = (nmgr_uwb_instance_t*)dw1000_mac_find_cb_inst_ptr(hal_dw1000_inst(0), DW1000_NMGR_UWB);
+#if MYNEWT_VAL(UWB_DEVICE_0)
+            nmgr_uwb_instance_t *nmgruwb = (nmgr_uwb_instance_t*)uwb_mac_find_cb_inst_ptr(uwb_dev_idx_lookup(0), UWBEXT_NMGR_UWB);
             if (!nmgruwb) {
                 console_printf("ERR, no NMGR-UWB enabled\n");
             }
@@ -158,7 +157,7 @@ rgbpwm_cli_cmd(int argc, char **argv)
 #endif // MYNEWT_VAL(NMGR_UWB_ENABLED)
 #else 
             console_printf("ERR, no UWB tranceiver present\n");
-#endif // MYNEWT_VAL(DW1000_DEVICE_0)
+#endif // MYNEWT_VAL(UWB_DEVICE_0)
         } while (1);
     }
     return 0;

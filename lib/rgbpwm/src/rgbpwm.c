@@ -14,8 +14,8 @@
 #include "rgbpwm/rgbpwm.h"
 #include "rgbpwm_nmgr_priv.h"
 
-#if MYNEWT_VAL(DW1000_DEVICE_0)
-#include <dw1000/dw1000_dev.h>
+#if MYNEWT_VAL(UWB_DEVICE_0)
+#include <uwb/uwb.h>
 #include <dw1000/dw1000_hal.h>
 #if MYNEWT_VAL(NMGR_UWB_ENABLED)
 #include <nmgr_uwb/nmgr_uwb.h> 
@@ -339,8 +339,8 @@ master_timer_ev_cb(struct os_event *ev)
     }
     int start_num_free = os_msys_num_free();
 
-#if MYNEWT_VAL(DW1000_DEVICE_0)
-    nmgr_uwb_instance_t *nmgruwb = (nmgr_uwb_instance_t*)dw1000_mac_find_cb_inst_ptr(hal_dw1000_inst(0), DW1000_NMGR_UWB);
+#if MYNEWT_VAL(UWB_DEVICE_0)
+    nmgr_uwb_instance_t *nmgruwb = (nmgr_uwb_instance_t*)uwb_mac_find_cb_inst_ptr(uwb_dev_idx_lookup(0), UWBEXT_NMGR_UWB);
     if (!nmgruwb) {
         return;
     }
@@ -352,7 +352,7 @@ master_timer_ev_cb(struct os_event *ev)
 #endif // MYNEWT_VAL(NMGR_UWB_ENABLED)
 #else 
     console_printf("ERR, no UWB tranceiver present\n");
-#endif // MYNEWT_VAL(DW1000_DEVICE_0)
+#endif // MYNEWT_VAL(UWB_DEVICE_0)
 
     /* Wait until packet sent to network before we change our local colour */
     int timeout=OS_TICKS_PER_SEC;

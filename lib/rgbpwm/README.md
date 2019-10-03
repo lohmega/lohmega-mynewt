@@ -43,9 +43,14 @@ The available settings can be shown with the ```config dump``` command:
 052601 split/status = 0
 052601 rgbpwm/pwm_freq = 1000                            # Frequency of the LED-PWM
 052601 rgbpwm/verbose = 0x0                              # Set to 0xffff to show verbose debug data
-052601 rgbpwm/mode = 0x0                                 # Mode 0 each node chooses a random color, 1 all nodes go to same random colour. Only affects master node
+052601 rgbpwm/mode = 0x0                                 # Mode (bitfield) 0x0 each node chooses a random color,
+                                                         # 0x1 all nodes go to same random colour. (Only affects master node)
+                                                         # 0x2 node go to same sequential colour. (Works on master and local)
 052601 rgbpwm/local_delay = 60000                        # (ms) Delay between automatic local colour changes, should be larger than the master delay
 052601 rgbpwm/master_delay = 30000                       # (ms) Delay between automatic master colour changes
+052602 rgbpwm/change_duration = 0                        # (ms) The colour change duration,
+                                                         # the time it takes to change colour.
+                                                         # If set to zero it will use the change delay
 052602 rgbpwm/colours0 = #ff0000,#00ff00,#0000ff,#000000 # Set of approved colours
 052603 rgbpwm/colours1 =                                 # approved colours continued...
 052603 rgbpwm/colours2 =                                 # approved colours continued...
