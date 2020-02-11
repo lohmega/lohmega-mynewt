@@ -1,0 +1,14 @@
+diff --git a/boot/bootutil/src/loader.c b/boot/bootutil/src/loader.c
+index d748439..3777593 100644
+--- a/boot/bootutil/src/loader.c
++++ b/boot/bootutil/src/loader.c
+@@ -1810,7 +1810,8 @@ boot_go(struct boot_rsp *rsp)
+      * onto an empty flash chip. At least do a basic sanity check that
+      * the magic number on the image is OK.
+      */
+-    if (boot_data.imgs[BOOT_PRIMARY_SLOT].hdr.ih_magic != IMAGE_MAGIC) {
++    if (boot_data.imgs[BOOT_PRIMARY_SLOT].hdr.ih_magic != IMAGE_MAGIC &&
++        boot_data.imgs[BOOT_PRIMARY_SLOT].hdr.ih_magic != IMAGE_MAGIC_V1) {
+         BOOT_LOG_ERR("bad image magic 0x%lx",
+                 (unsigned long)boot_data.imgs[BOOT_PRIMARY_SLOT].hdr.ih_magic);
+         rc = BOOT_EBADIMAGE;
