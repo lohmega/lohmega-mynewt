@@ -346,7 +346,7 @@ master_timer_ev_cb(struct os_event *ev)
     }
 
 #if MYNEWT_VAL(NMGR_UWB_ENABLED)
-    uwb_nmgr_queue_tx(nmgruwb, 0xffff, NMGR_CMD_STATE_SEND, om);
+    uwb_nmgr_queue_tx(nmgruwb, 0xffff, UWB_DATA_CODE_NMGR_REQUEST, om);
 #else
     console_printf("ERR, no NMGR-UWB enabled\n");
 #endif // MYNEWT_VAL(NMGR_UWB_ENABLED)

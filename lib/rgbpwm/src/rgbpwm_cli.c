@@ -61,7 +61,7 @@ static struct shell_cmd shell_rgbpwm_cmd = {
     .sc_cmd = "rgb",
     .sc_cmd_func = rgbpwm_cli_cmd,
 #if MYNEWT_VAL(SHELL_CMD_HELP)
-    &cmd_rgbpwm_help
+    .help = &cmd_rgbpwm_help
 #endif
 };
 
@@ -112,7 +112,7 @@ rgbpwm_cli_cmd(int argc, char **argv)
         if (!nmgruwb) return 0;
         int start_num_free = os_msys_num_free();
 #if MYNEWT_VAL(NMGR_UWB_ENABLED)
-        uwb_nmgr_queue_tx(nmgruwb, addr, NMGR_CMD_STATE_SEND, om);
+        uwb_nmgr_queue_tx(nmgruwb, addr, UWB_DATA_CODE_NMGR_REQUEST, om);
 #else
         console_printf("ERR, no NMGR-UWB enabled\n");
 #endif // MYNEWT_VAL(NMGR_UWB_ENABLED)
@@ -151,7 +151,7 @@ rgbpwm_cli_cmd(int argc, char **argv)
                 console_printf("ERR, no NMGR-UWB enabled\n");
             }
 #if MYNEWT_VAL(NMGR_UWB_ENABLED)
-            uwb_nmgr_queue_tx(nmgruwb, addr, NMGR_CMD_STATE_SEND, om);
+            uwb_nmgr_queue_tx(nmgruwb, addr, UWB_DATA_CODE_NMGR_REQUEST, om);
 #else
             console_printf("ERR, no NMGR-UWB enabled\n");
 #endif // MYNEWT_VAL(NMGR_UWB_ENABLED)
