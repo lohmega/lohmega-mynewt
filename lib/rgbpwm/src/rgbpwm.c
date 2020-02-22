@@ -237,6 +237,10 @@ rgbpwm_conf_commit(void)
         os_callout_reset(&rgbpwm_inst.local_colour_change_callout, 5*OS_TICKS_PER_SEC);
     }
 
+    if (rgbpwm_inst.mode & RGBPWM_MODE_FIRE) {
+        os_callout_reset(&rgbpwm_inst.local_colour_change_callout, OS_TICKS_PER_SEC/10);
+    }
+
     if (rgbpwm_inst.master_colour_change_delay) {
         os_callout_reset(&rgbpwm_inst.master_colour_change_callout, OS_TICKS_PER_SEC);
     }
@@ -280,20 +284,41 @@ local_change_timer_ev_cb(struct os_event *ev)
 {
     int32_t change_duration = rgbpwm_inst.colour_change_duration;
     uint64_t wrgb;
+    int dly_ticks = 0;
     if (!change_duration) {
         change_duration = rgbpwm_inst.local_colour_change_delay;
     }
 
+    if (rgbpwm_inst.local_colour_change_delay) {
+        dly_ticks = (OS_TICKS_PER_SEC*rgbpwm_inst.local_colour_change_delay)/1000;
+    }
+
     if (rgbpwm_inst.mode & RGBPWM_MODE_SEQUENTIAL) {
         wrgb = rgbpwm_get_sequential_approved_colour();
+    } else if (rgbpwm_inst.mode & RGBPWM_MODE_FIRE) {
+        uint32_t intensity = rand()&0x7F;
+        int blue_int = (intensity + (rand()&0xF)-0x7)/32;
+        blue_int = (blue_int<0 || blue_int > 255)? 0:blue_int;
+        wrgb = (intensity+128)<<16 | (intensity/4)<<8 | blue_int;
+        dly_ticks = rand()&0x6F;
+        change_duration = 10 + (rand()&0x6F);
+        dly_ticks = (OS_TICKS_PER_SEC*change_duration)/1000;
+        if ((rand()&0x5F) == 0) {
+            /* Spark */
+            intensity = 255 - 0x2F + (rand()&0x2F);
+            blue_int = (rand()&0x1F);
+            wrgb = (intensity&0xff)<<16 | (intensity&0xff)<<8 | blue_int;
+            change_duration = 1;
+            dly_ticks = 1;
+        }
+        printf("Fire: 0x%6llX %ldms I:%ld bI:%d\n", wrgb, change_duration, intensity, blue_int);
     } else {
         wrgb = rgbpwm_get_random_approved_colour();
     }
     rgbpwm_set_target32(wrgb, change_duration);
 
-    if (rgbpwm_inst.local_colour_change_delay) {
-        os_callout_reset(&rgbpwm_inst.local_colour_change_callout,
-                         (OS_TICKS_PER_SEC*rgbpwm_inst.local_colour_change_delay)/1000);
+    if (dly_ticks) {
+        os_callout_reset(&rgbpwm_inst.local_colour_change_callout, dly_ticks);
     }
 }
 
