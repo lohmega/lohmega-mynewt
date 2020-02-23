@@ -297,9 +297,10 @@ local_change_timer_ev_cb(struct os_event *ev)
         wrgb = rgbpwm_get_sequential_approved_colour();
     } else if (rgbpwm_inst.mode & RGBPWM_MODE_FIRE) {
         uint32_t intensity = rand()&0x7F;
+        int redmod = rgbpwm_inst.mode >> 12;
         int blue_int = (intensity + (rand()&0xF)-0x7)/32;
         blue_int = (blue_int<0 || blue_int > 255)? 0:blue_int;
-        wrgb = (intensity+128)<<16 | (intensity/4)<<8 | blue_int;
+        wrgb = (intensity+128)<<16 | (intensity/(redmod+1))<<8 | blue_int;
         dly_ticks = rand()&0x6F;
         change_duration = 10 + (rand()&0x6F);
         dly_ticks = (OS_TICKS_PER_SEC*change_duration)/1000;
@@ -311,7 +312,7 @@ local_change_timer_ev_cb(struct os_event *ev)
             change_duration = 1;
             dly_ticks = 1;
         }
-        printf("Fire: 0x%6llX %ldms I:%ld bI:%d\n", wrgb, change_duration, intensity, blue_int);
+        // printf("Fire: 0x%6llX %ldms I:%ld bI:%d\n", wrgb, change_duration, intensity, blue_int);
     } else {
         wrgb = rgbpwm_get_random_approved_colour();
     }
