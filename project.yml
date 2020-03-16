@@ -2,21 +2,12 @@ project.name: "loligo-mynewt"
 
 project.repositories:
     - apache-mynewt-core
-    - mynewt-dw1000-core
 
 # Use github's distribution mechanism for core ASF libraries.
 # This provides mirroring automatically for us.
 #
 repository.apache-mynewt-core:
     type: github
-    vers: 1.4.0
+    vers: 1.7.0
     user: apache
     repo: mynewt-core
-
-repository.mynewt-dw1000-core:
-    type: git
-    vers: 0-dev
-    user: decawave
-    repo: mynewt-dw1000-core
-    url: 'git@github.com:Decawave/mynewt-dw1000-core.git'
-
