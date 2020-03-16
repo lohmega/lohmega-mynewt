@@ -93,7 +93,7 @@ rgbpwm_cli_cmd(int argc, char **argv)
 
     } else if (!strcmp(argv[1], "tx")) {
 
-        if (argc < 3) {
+        if (argc < 4) {
             rgbpwm_cli_too_few_args();
             return 0;
         }
@@ -101,6 +101,7 @@ rgbpwm_cli_cmd(int argc, char **argv)
         if (argc > 3) {
             target_wrgb = strtoll(argv[3], NULL, 16);
         }
+        delay_ms = 1;
         if (argc > 4) {
             delay_ms = strtol(argv[4], NULL, 0);
         }

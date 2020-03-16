@@ -18,7 +18,7 @@
 #include <uwb/uwb.h>
 #include <dw1000/dw1000_hal.h>
 #if MYNEWT_VAL(NMGR_UWB_ENABLED)
-#include <nmgr_uwb/nmgr_uwb.h> 
+#include <nmgr_uwb/nmgr_uwb.h>
 #endif
 #endif
 
@@ -45,8 +45,8 @@ static int16_t start_value[PWM_NUM_CHANNELS] = {0,0,0,0};
 static int16_t target_value[PWM_NUM_CHANNELS] = {0,0,0,0};
 static int16_t current_value[PWM_NUM_CHANNELS] = {0,0,0,0};
 
-/* 
- * Config 
+/*
+ * Config
  */
 static int rgbpwm_conf_commit(void);
 static int rgbpwm_conf_export(void (*export_func)(char *name, char *val),
@@ -143,7 +143,7 @@ rgbpwm_conf_set(int argc, char **argv, char *val)
             return CONF_VALUE_SET(val, CONF_STRING, rgbpwm_config.colours2);
         } else if (!strcmp(argv[0], "colours3")) {
             return CONF_VALUE_SET(val, CONF_STRING, rgbpwm_config.colours3);
-        } 
+        }
     }
     return OS_ENOENT;
 }
@@ -156,8 +156,8 @@ extract_colours(char* s, int len, uint32_t *colours, int maxnum)
     char* rest = tmp;
     char* token = strtok_r(tmp, ",", &rest);
     int c = 0;
-    // Keep printing tokens while one of the 
-    // delimiters present in str[]. 
+    // Keep printing tokens while one of the
+    // delimiters present in str[].
     while (token != NULL) {
         if (!strchr(token, '#')) {
             goto next;
@@ -376,7 +376,7 @@ master_timer_ev_cb(struct os_event *ev)
 #else
     console_printf("ERR, no NMGR-UWB enabled\n");
 #endif // MYNEWT_VAL(NMGR_UWB_ENABLED)
-#else 
+#else
     console_printf("ERR, no UWB tranceiver present\n");
 #endif // MYNEWT_VAL(UWB_DEVICE_0)
 
@@ -487,7 +487,7 @@ rgbpwm_set_target32(uint32_t wrgb, int32_t delay_ms)
     if (delay_ms == 0) {
         delay_ms = rgbpwm_inst.local_colour_change_delay;
     }
-    
+
     t[3] = (0xff&(wrgb>>24)) / ((float)0xff);
     t[0] = (0xff&(wrgb>>16)) / ((float)0xff);
     t[1] = (0xff&(wrgb>>8))  / ((float)0xff);
@@ -611,7 +611,7 @@ rgbpwm_pkg_init(void)
                     local_change_timer_ev_cb, NULL);
     os_callout_init(&rgbpwm_inst.master_colour_change_callout, os_eventq_dflt_get(),
                     master_timer_ev_cb, NULL);
-    
+
     pwm_init();
 #if MYNEWT_VAL(RGBPWM_CLI)
     rgbpwm_cli_register();
