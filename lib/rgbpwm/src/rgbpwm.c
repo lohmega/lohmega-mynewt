@@ -207,7 +207,7 @@ rgbpwm_conf_commit(void)
     }
     assert(rc>0);
 
-    for (int i=0;i<sizeof(channels);i++) {
+    for (int i=0;i<PWM_NUM_CHANNELS;i++) {
         uint16_t new_top_val = (uint16_t) pwm_get_top_value(pwm);
         if (new_top_val != top_val[i]) {
             float target =  (float)target_value[i]/top_val[i];
@@ -216,7 +216,7 @@ rgbpwm_conf_commit(void)
         }
     }
 
-    for (int i=0;i<sizeof(channels);i++) {
+    for (int i=0;i<PWM_NUM_CHANNELS;i++) {
         rc = pwm_enable(pwm);
         assert(rc == 0);
     }
@@ -574,7 +574,7 @@ pwm_init(void)
     rc = pwm_set_frequency(pwm, pwm_freq);
     assert(rc>0);
 
-    for (int i=0;i<sizeof(channels);i++) {
+    for (int i=0;i<PWM_NUM_CHANNELS;i++) {
         top_val[i] = (uint16_t) pwm_get_top_value(pwm);
 
         /* setup led */
@@ -585,7 +585,7 @@ pwm_init(void)
         assert(rc == 0);
     }
 
-    for (int i=0;i<sizeof(channels);i++) {
+    for (int i=0;i<PWM_NUM_CHANNELS;i++) {
         target_value[i] = 0;
         rc = pwm_enable(pwm);
         assert(rc == 0);

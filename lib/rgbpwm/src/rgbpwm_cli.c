@@ -107,11 +107,11 @@ rgbpwm_cli_cmd(int argc, char **argv)
         }
         struct os_mbuf *om = rgbpwm_get_txcolour_mbuf(target_wrgb, delay_ms);
         if (!om) return 0;
+        int start_num_free = os_msys_num_free();
 #if MYNEWT_VAL(UWB_DEVICE_0)
         nmgr_uwb_instance_t *nmgruwb = (nmgr_uwb_instance_t*)uwb_mac_find_cb_inst_ptr(uwb_dev_idx_lookup(0), UWBEXT_NMGR_UWB);
 
         if (!nmgruwb) return 0;
-        int start_num_free = os_msys_num_free();
 #if MYNEWT_VAL(NMGR_UWB_ENABLED)
         uwb_nmgr_queue_tx(nmgruwb, addr, UWB_DATA_CODE_NMGR_REQUEST, om);
 #else
