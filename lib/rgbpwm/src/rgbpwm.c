@@ -22,7 +22,6 @@
 #endif
 #endif
 
-#define  PWM_TEST_CH_CFG_INV  false
 #define  PWM_TEST_IRQ_PRIO    3
 #define  PWM_NUM_CHANNELS (4)
 
@@ -526,33 +525,30 @@ rgbpwm_delay_local_change_timer(int arg_ms)
     os_callout_reset(&rgbpwm_inst.local_colour_change_callout, (OS_TICKS_PER_SEC*ms)/1000);
 }
 
-#if MYNEWT_VAL(RGBPWM_RED_LED_PIN) < 0 || MYNEWT_VAL(RGBPWM_GREEN_LED_PIN) < 0 || MYNEWT_VAL(RGBPWM_BLUE_LED_PIN) < 0
-#warning "please set RGBPWM_XXX_LED_PINs"
-#endif
 int
-pwm_init(void)
+rgbpwm_init(const struct rgbpwm_cfg *cfg)
 {
     int rc;
-    char* device_str = MYNEWT_VAL(RGBPWM_PWM_DEVICE);
+    assert(cfg);
     struct pwm_chan_cfg chan_conf[] = {
         {
-            .pin = MYNEWT_VAL(RGBPWM_RED_LED_PIN),
-            .inverted = PWM_TEST_CH_CFG_INV,
+            .pin = cfg->red_pin,
+            .inverted = cfg->red_inverted,
             .data = NULL,
         },
         {
-            .pin = MYNEWT_VAL(RGBPWM_GREEN_LED_PIN),
-            .inverted = PWM_TEST_CH_CFG_INV,
+            .pin = cfg->green_pin,
+            .inverted = cfg->green_inverted,
             .data = NULL,
         },
         {
-            .pin = MYNEWT_VAL(RGBPWM_BLUE_LED_PIN),
-            .inverted = PWM_TEST_CH_CFG_INV,
+            .pin = cfg->blue_pin,
+            .inverted = cfg->blue_inverted,
             .data = NULL,
         },
         {
-            .pin = MYNEWT_VAL(RGBPWM_WHITE_LED_PIN),
-            .inverted = PWM_TEST_CH_CFG_INV,
+            .pin = cfg->white_pin,
+            .inverted = cfg->white_inverted,
             .data = NULL,
         }
     };
@@ -566,7 +562,7 @@ pwm_init(void)
             .data = NULL
         };
 
-    pwm = (struct pwm_dev *) os_dev_open(device_str, 0, NULL);
+    pwm = (struct pwm_dev *) os_dev_open(cfg->pwm_device_str, 0, NULL);
     assert(pwm);
     rc = pwm_configure_device(pwm, &dev_conf);
     assert(rc==0);
@@ -612,7 +608,6 @@ rgbpwm_pkg_init(void)
     os_callout_init(&rgbpwm_inst.master_colour_change_callout, os_eventq_dflt_get(),
                     master_timer_ev_cb, NULL);
 
-    pwm_init();
 #if MYNEWT_VAL(RGBPWM_CLI)
     rgbpwm_cli_register();
 #endif

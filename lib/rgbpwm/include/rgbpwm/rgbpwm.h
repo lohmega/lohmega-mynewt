@@ -16,6 +16,20 @@ extern "C" {
 #define RGBPWM_MODE_SEQUENTIAL    (0x0002)
 #define RGBPWM_MODE_FIRE          (0x0004)
 
+struct rgbpwm_cfg {
+    char* pwm_device_str;
+    int red_pin;
+    int green_pin;
+    int blue_pin;
+    int white_pin;
+    uint8_t red_inverted:1;
+    uint8_t green_inverted:1;
+    uint8_t blue_inverted:1;
+    uint8_t white_inverted:1;
+};
+
+int rgbpwm_init(const struct rgbpwm_cfg *cfg);
+
 int rgbpwm_set_target(float *value, float *delay, int len);
 void rgbpwm_set_target32(uint32_t wrgb, int32_t delay_ms);
 
@@ -28,7 +42,7 @@ struct os_mbuf* rgbpwm_get_txcfg_mbuf(int cfg_index);
 
 char *rgbpwm_conf_get(int argc, char **argv, char *val, int val_len_max);
 int rgbpwm_conf_set(int argc, char **argv, char *val);
-    
+
 #ifdef __cplusplus
 }
 #endif
