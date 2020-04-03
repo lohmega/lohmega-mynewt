@@ -299,7 +299,7 @@ local_change_timer_ev_cb(struct os_event *ev)
         int redmod = rgbpwm_inst.mode >> 12;
         int blue_int = (intensity + (rand()&0xF)-0x7)/32;
         blue_int = (blue_int<0 || blue_int > 255)? 0:blue_int;
-        wrgb = (intensity+128)<<16 | (intensity/(redmod+1))<<8 | blue_int;
+        wrgb = (intensity/4)<<24 | (intensity+128)<<16 | (intensity/(redmod+1))<<8 | blue_int;
         dly_ticks = rand()&0x6F;
         change_duration = 10 + (rand()&0x6F);
         dly_ticks = (OS_TICKS_PER_SEC*change_duration)/1000;
@@ -307,7 +307,7 @@ local_change_timer_ev_cb(struct os_event *ev)
             /* Spark */
             intensity = 255 - 0x2F + (rand()&0x2F);
             blue_int = (rand()&0x1F);
-            wrgb = (intensity&0xff)<<16 | (intensity&0xff)<<8 | blue_int;
+            wrgb = (intensity&0xff)<<24 | (intensity&0xff)<<16 | (intensity&0xff)<<8 | blue_int;
             change_duration = 1;
             dly_ticks = 1;
         }
