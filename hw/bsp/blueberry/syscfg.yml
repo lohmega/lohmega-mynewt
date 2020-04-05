@@ -35,7 +35,9 @@ syscfg.defs:
     SI1133_ONB:
         description: 'si1133 light sensor'
         value:  0
-
+    BMX160_ONB:
+        description: 'bmx160 IMU sensor'
+        value:  0
 
 syscfg.vals:
     MCU_TARGET: nRF52832

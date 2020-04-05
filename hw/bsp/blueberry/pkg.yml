@@ -63,9 +63,13 @@ pkg.deps.HTS221_ONB:
 
 pkg.deps.SI1133_ONB:
     - 'hw/drivers/sensors/si1133'
+
+pkg.deps.BMX160_ONB:
+    - 'hw/drivers/sensors/bmx160'
     
 pkg.init:
   config_mpu6500_sensor: 400
   config_lps22hb_sensor: 400
   config_hts221_sensor: 400
   config_si1133_sensor: 400
+  config_bmx160_sensor: 400
