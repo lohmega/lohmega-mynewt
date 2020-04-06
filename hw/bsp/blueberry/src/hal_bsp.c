@@ -65,6 +65,7 @@ static const struct nrf52_hal_i2c_cfg hal_i2c_cfg = {
     .sda_pin = 11,
     .i2c_frequency = 400    /* 400 kHz */
 };
+#endif
 
 #if MYNEWT_VAL(MPU6500_ONB)
 static struct sensor_itf i2c_1_itf_mpu = {
@@ -108,7 +109,6 @@ static struct sensor_itf i2c_1_itf_si1 = {
 #endif
 
 
-#endif
 
 /*
  * What memory to include in coredump.
