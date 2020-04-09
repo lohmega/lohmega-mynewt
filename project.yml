@@ -11,3 +11,11 @@ repository.apache-mynewt-core:
     vers: 1.7.0
     user: apache
     repo: mynewt-core
+
+
+
+repository.mcuboot:
+    type: github
+    vers: 0-dev
+    user: JuulLabs-OSS
+    repo: mcuboot
