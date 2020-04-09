@@ -73,3 +73,4 @@ pkg.init:
   config_hts221_sensor: 400
   config_si1133_sensor: 400
   config_bmx160_sensor: 400
+

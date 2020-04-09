@@ -2,7 +2,7 @@
  * BMI160 BMX160 difference (incomplete)
  * =====================================
  *
- * Note the name differs below! i.e. BMI160 macros point to incorrect register!
+ * Note the names in datasheet differs! 
  * <reg_addr>:<reg_name>:<description>
  * | BMI160                  | BMX160
  * | 0x4F:MAG_IF_4:wr_data   | 0x4F:MAG_IF_3:wr_data |
@@ -208,12 +208,11 @@ static int8_t bmx160_bosch_write(uint8_t _id, uint8_t reg_addr, uint8_t *data, u
     return bmx160_reg_write(g_bmx160_dev, reg_addr, data, len);
 }
 
-
 static int
 bmx160_sd_read(struct sensor *sensor,
                    sensor_type_t sensor_type,
-                   sensor_data_func_t data_func,
-                   void *data_arg,
+                   sensor_data_func_t cb_func,
+                   void *cb_arg,
                    uint32_t timeout)
 {
     int err;
@@ -236,10 +235,7 @@ bmx160_sd_read(struct sensor *sensor,
         sad.sad_y_is_valid = 1;
         sad.sad_z_is_valid = 1;
 
-        err = data_func(sensor,
-                       data_arg,
-                       &sad,
-                       SENSOR_TYPE_ACCELEROMETER);
+        err = cb_func(sensor, cb_arg, &sad, SENSOR_TYPE_ACCELEROMETER);
         if (err)
             return err;
     }
@@ -250,8 +246,19 @@ bmx160_sd_read(struct sensor *sensor,
         err = bmi160_get_sensor_data(BMI160_GYRO_ONLY, NULL, &gyro, bmi160_dev);
         if (err)
             return err;
-        // TODO
-        return SYS_EINVAL; // TODO
+
+        struct sensor_gyro_data sgd;
+        // TODO scaling?
+        sgd.sgd_x = gyro.x;
+        sgd.sgd_y = gyro.y;
+        sgd.sgd_z = gyro.z;
+        sgd.sgd_x_is_valid = 1;
+        sgd.sgd_y_is_valid = 1;
+        sgd.sgd_z_is_valid = 1;
+
+        err = cb_func(sensor, cb_arg, &sgd, SENSOR_TYPE_GYROSCOPE);
+		if (err)
+			return err;
     }
 
     if (sensor_type & SENSOR_TYPE_MAGNETIC_FIELD) {
@@ -274,6 +281,10 @@ static int bmx160_sd_get_config(struct sensor * sensor,
         cfg->sc_valtype = SENSOR_VALUE_TYPE_FLOAT_TRIPLET;
     }
 
+    if (sensor_type & SENSOR_TYPE_GYROSCOPE) {
+        cfg->sc_valtype = SENSOR_VALUE_TYPE_FLOAT_TRIPLET;
+    }
+
     if (sensor_type & SENSOR_TYPE_TEMPERATURE) {
         cfg->sc_valtype = SENSOR_VALUE_TYPE_FLOAT;
     }
@@ -284,7 +295,7 @@ static int bmx160_sd_get_config(struct sensor * sensor,
 static struct sensor_driver bmx160_sensor_driver = {
     .sd_read               = bmx160_sd_read,
     .sd_get_config         = bmx160_sd_get_config,
-    .sd_set_config         = bmx160_sd_set_config,
+    //.sd_set_config         = bmx160_sd_set_config,
     //.sd_set_trigger_thresh = bmx160_sd_set_trigger_thresh,
     //.sd_set_notification   = bmx160_sd_set_notification,
     //.sd_unset_notification = bmx160_sd_unset_notification,
@@ -294,35 +305,10 @@ static struct sensor_driver bmx160_sensor_driver = {
 
 int bmx160_config(struct bmx160 *bmx160, const struct bmx160_cfg *cfg)
 {
-    return 0;
-}
+    (void) bmx160_sd_set_config;
+    int err = 0;
 
-int bmx160_init(struct os_dev *dev, void *arg)
-{
-    int err;
-    log_register(dev->od_name, &_log, &log_console_handler, NULL, LOG_SYSLEVEL);
-    
-    struct bmx160 *bmx160 = (struct bmx160 *)dev;
-
-    g_bmx160_dev = bmx160; // temp hack. TODO
     struct sensor *sensor = &bmx160->sensor;
-
-    err = sensor_init(sensor, dev);
-    assert(!err);
-
-    err = sensor_set_driver(sensor,
-                           SENSOR_TYPE_ACCELEROMETER, // TODO all sensor types
-                           &bmx160_sensor_driver);
-    assert(!err);
-
-    err = sensor_set_interface(sensor, arg);
-    assert(!err);
-
-    sensor->s_next_run = OS_TIMEOUT_NEVER;
-
-    err = sensor_mgr_register(sensor);
-    assert(!err);
-
     struct bmi160_dev *bmi160_dev = bmx160_get_bmi160_dev(bmx160);
     bmi160_dev->id = -1; // TODO not used see above
     bmi160_dev->interface = BMI160_I2C_INTF;
@@ -346,7 +332,48 @@ int bmx160_init(struct os_dev *dev, void *arg)
 
     err = bmi160_set_sens_conf(bmi160_dev);
     assert(!err);
+    
+    // sanity check on magic chip_id
+    uint8_t chip_id = 0;
+    err = bmx160_reg_read(bmx160, BMI160_CHIP_ID_ADDR, &chip_id, 1);
+    assert(!err);
+    assert(chip_id == 0xD8);
 
+    sensor_type_t mask = (SENSOR_TYPE_GYROSCOPE |
+            SENSOR_TYPE_ACCELEROMETER); // TODO from config
+    err = sensor_set_type_mask(sensor, mask);
+    assert(!err);
+
+    return 0;
+}
+
+int bmx160_init(struct os_dev *dev, void *arg)
+{
+    int err;
+    err = log_register(dev->od_name, &_log, &log_console_handler, NULL, LOG_SYSLEVEL);
+    assert(!err);
+    
+    struct bmx160 *bmx160 = (struct bmx160 *)dev;
+
+    g_bmx160_dev = bmx160; // temp hack. TODO
+    struct sensor *sensor = &bmx160->sensor;
+
+    err = sensor_init(sensor, dev);
+    assert(!err);
+
+    err = sensor_set_driver(sensor,
+            (SENSOR_TYPE_GYROSCOPE |
+            SENSOR_TYPE_ACCELEROMETER), // TODO all sensor types
+                           &bmx160_sensor_driver);
+    assert(!err);
+
+    err = sensor_set_interface(sensor, arg);
+    assert(!err);
+
+    //sensor->s_next_run = OS_TIMEOUT_NEVER;
+
+    err = sensor_mgr_register(sensor);
+    assert(!err);
 
     return 0;
 }

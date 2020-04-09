@@ -182,7 +182,7 @@ static void sensor_timer_ev_cb(struct os_event *ev) {
                              &sensor_data_cb,
                              0,
                              OS_TICKS_PER_SEC/10);
-            if (rc) console_printf("Error: failed to read sensor\r\n");
+            if (rc) console_printf("Error: failed to read sensor\n");
         }
 
         i++;
