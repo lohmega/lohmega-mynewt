@@ -4542,6 +4542,7 @@ static int8_t config_tap_param(const struct bmi160_int_settg *int_config,
  */
 static int8_t config_sec_if(const struct bmi160_dev *dev)
 {
+#if 0 // BMX160 fix
     int8_t rslt;
     uint8_t if_conf = 0;
     uint8_t cmd = BMI160_AUX_NORMAL_MODE;
@@ -4562,6 +4563,9 @@ static int8_t config_sec_if(const struct bmi160_dev *dev)
     }
 
     return rslt;
+#else
+    return 0;
+#endif
 }
 
 /*!
