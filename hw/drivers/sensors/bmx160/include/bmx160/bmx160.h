@@ -56,8 +56,6 @@ struct bmx160 {
     uint8_t _txbuf[8];
     uint8_t _rxbuf[12];
     struct bmm150_trim_regs _trim_regs;
-    //uint64_t _priv_bmi160[74/8]; // private data 64 bit aligned
-    //uint64_t _priv_bmm150[74/8]; // private data 64 bit aligned
 };
 
 int bmx160_init(struct os_dev *, void *arg);

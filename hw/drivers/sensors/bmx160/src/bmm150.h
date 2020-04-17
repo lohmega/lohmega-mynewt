@@ -23,13 +23,13 @@
 #define BMM150_REG_X_M             0x43
 #define BMM150_REG_Y_L             0x44
 #define BMM150_REG_Y_M             0x45
-#define BMM150_SHIFT_XY_L          3
+//#define BMM150_SHIFT_XY_L          3
 #define BMM150_REG_Z_L             0x46
 #define BMM150_REG_Z_M             0x47
-#define BMM150_SHIFT_Z_L           1
+//#define BMM150_SHIFT_Z_L           1
 #define BMM150_REG_RHALL_L         0x48
 #define BMM150_REG_RHALL_M         0x49
-#define BMM150_SHIFT_RHALL_L       2
+//#define BMM150_SHIFT_RHALL_L       2
 
 #define BMM150_REG_INT_STATUS      0x4A
 
@@ -76,55 +76,6 @@
 #define BMM150_MASK_DRDY_LATCHING          BIT(1)
 #define BMM150_MASK_DRDY_INT3_POLARITY     BIT(0)
 
-#if 0
-
-struct bmm150_trim_regs {
-	int8_t x1;
-	int8_t y1;
-	uint16_t reserved1;
-	uint8_t reserved2;
-	int16_t z4;
-	int8_t x2;
-	int8_t y2;
-	uint16_t reserved3;
-	int16_t z2;
-	uint16_t z1;
-	uint16_t xyz1;
-	int16_t z3;
-	int8_t xy2;
-	uint8_t xy1;
-} __attribute__((packed));
-
-struct bmm150_data {
-	struct device *i2c;
-	struct k_sem sem;
-	struct bmm150_trim_regs tregs;
-	int rep_xy, rep_z, odr, max_odr;
-	int sample_x, sample_y, sample_z;
-};
-
-enum bmm150_power_modes {
-	BMM150_POWER_MODE_SUSPEND,
-	BMM150_POWER_MODE_SLEEP,
-	BMM150_POWER_MODE_NORMAL
-};
-
-enum bmm150_axis {
-	BMM150_AXIS_X,
-	BMM150_AXIS_Y,
-	BMM150_AXIS_Z,
-	BMM150_RHALL,
-	BMM150_AXIS_XYZ_MAX = BMM150_RHALL,
-	BMM150_AXIS_XYZR_MAX
-};
-
-enum bmm150_presets {
-	BMM150_LOW_POWER_PRESET,
-	BMM150_REGULAR_PRESET,
-	BMM150_ENHANCED_REGULAR_PRESET,
-	BMM150_HIGH_ACCURACY_PRESET
-};
-#endif
 
 #endif /* __SENSOR_BMM150_H__ */
 
