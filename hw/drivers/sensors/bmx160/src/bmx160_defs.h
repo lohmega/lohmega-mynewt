@@ -86,9 +86,6 @@
 #define BMX160_ACC_CONF_ODR_400HZ               (0x0A)
 #define BMX160_ACC_CONF_ODR_800HZ               (0x0B)
 #define BMX160_ACC_CONF_ODR_1600HZ              (0x0C)
-#define BMX160_ACC_CONF_ODR_RESERVED0           (0x0D)
-#define BMX160_ACC_CONF_ODR_RESERVED1           (0x0E)
-#define BMX160_ACC_CONF_ODR_RESERVED2           (0x0F)
 /* Accel bandwidth */
 #define BMX160_ACC_CONF_BWP_OSR4_AVG1            (0x00 << 4)
 #define BMX160_ACC_CONF_BWP_OSR2_AVG2            (0x01 << 4)

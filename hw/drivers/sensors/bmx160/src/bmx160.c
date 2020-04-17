@@ -31,7 +31,7 @@
 #include "stats/stats.h"
 
 #include "bmx160/bmx160.h"
-#include "bmi160.h"
+#include "bmm150.h"
 
 #include "bmx160_defs.h"
 
@@ -40,14 +40,6 @@ struct bmx160_regval {
     uint8_t reg_val;
 };
 
-// hack to adapt to adapt bosch api without modifications to original source. TODO fix
-static struct bmx160 * g_bmx160_dev = NULL;
-
-static inline struct bmi160_dev * bmx160_get_bmi160_dev(struct bmx160 * bmx160)
-{
-    _Static_assert(sizeof(bmx160->_priv_bmi160) >= sizeof(struct bmi160_dev), "");
-    return (struct bmi160_dev *) bmx160->_priv_bmi160;
-}
 
 #ifndef ARRAY_LEN
 #define ARRAY_LEN(array) (sizeof(array) / sizeof(array[0]))
@@ -72,6 +64,41 @@ static inline struct bmi160_dev * bmx160_get_bmi160_dev(struct bmx160 * bmx160)
 static struct log _log;
 
 
+__attribute__((always_inline))
+static inline unsigned int unpack_u16(const uint8_t *src, uint16_t *dst)
+{
+    uint8_t lsb = *src++;
+    uint8_t msb = *src++;
+    *dst = (uint16_t)((msb << 8) | lsb);
+    return sizeof(uint16_t);
+}
+
+__attribute__((always_inline))
+static inline unsigned int unpack_s16(const uint8_t *src, int16_t *dst)
+{
+    uint8_t lsb = *src++;
+    uint8_t msb = *src++;
+    *dst = (int16_t)((msb << 8) | lsb);
+    return sizeof(int16_t);
+}
+
+
+static int bmx160_unpack_s16xyz(uint8_t *src, float *x, float *y, float *z, float mul)
+{
+
+    int16_t s16val = 0;
+
+    src += unpack_s16(src, &s16val);
+    *x = s16val * mul;
+
+    src += unpack_s16(src, &s16val);
+    *y = s16val * mul;
+
+    src += unpack_s16(src, &s16val);
+    *z = s16val * mul;
+
+    return 0;
+}
 
 static int bmx160_reg_read_i2c(
         struct sensor_itf   *itf,
@@ -138,6 +165,26 @@ static int bmx160_reg_read(struct bmx160 *bmx160,
 }
 
 
+static unsigned int bmx160_get_cmd_post_delay_ms(uint8_t cmd_val)
+{
+    switch(cmd_val) {
+        case BMX160_CMD_SOFTRESET:
+            return 300; // 300 in manual 1 in bmi160 driver
+        case BMX160_CMD_PMU_MODE_ACC_NORMAL:
+        case BMX160_CMD_PMU_MODE_ACC_LOW_POWER:
+            return 4 + 1;
+        case BMX160_CMD_PMU_MODE_GYR_NORMAL:
+        case BMX160_CMD_PMU_MODE_GYR_FAST_STARTUP:
+            return 80 + 1; // from suspend mode
+        case BMX160_CMD_PMU_MODE_MAG_SUSPEND:
+        case BMX160_CMD_PMU_MODE_MAG_NORMAL:
+        case BMX160_CMD_PMU_MODE_MAG_LOW_POWER:
+            return 1 + 1;
+        default:
+            return 0;
+    }
+}
+
 static int bmx160_reg_write(struct bmx160 *bmx160,
              uint8_t addr,
              const uint8_t *data,
@@ -181,40 +228,189 @@ static int bmx160_reg_write(struct bmx160 *bmx160,
 
     sensor_itf_unlock(itf);
 
-    BMX160_LOG_INFO("WR_REG:0x%02X=0x%02X\n", addr, data[0]);
+    BMX160_LOG_INFO("WR_REG:0x%02X=0x%02X\n", addr, bmx160->_txbuf[1]);
+
+    if (addr == BMX160_REG_CMD) {
+        assert(size == 1);
+        uint8_t cmd_val = bmx160->_txbuf[1]; 
+        unsigned int t_ms = bmx160_get_cmd_post_delay_ms(cmd_val);
+        if (t_ms) 
+            os_time_delay((OS_TICKS_PER_SEC * t_ms) / 1000 + 1);
+    }
+
 	return err;
 }
 
-__attribute__((always_inline))
-static inline void unpack_s16(uint8_t **psrc, int16_t *dst)
+// wait on bmm/mag/aux operation to complete
+static int bmx160_bmm_operation_wait(struct bmx160 *bmx160)
 {
-    const uint8_t *src = *psrc;
-    uint8_t lsb = *src++;
-    uint8_t msb = *src++;
-    *dst = (int16_t)((msb << 8) | lsb);
-    *psrc += sizeof(int16_t);
+    int err; 
+    uint8_t status = 0;
+
+    for (int i = 0; i < 512; i++) {
+        err = bmx160_reg_read(bmx160, BMX160_REG_STATUS, &status, 1);
+        if (err)
+            return err;
+
+        if (status & BMX160_STATUS_MAG_MAN_OP)
+            os_time_delay((OS_TICKS_PER_SEC * 1) / 1000);
+        else
+            return 0;
+    }
+
+    return SYS_EBUSY;
 }
 
-
-static int bmx160_unpack_s16xyz(uint8_t *src, float *x, float *y, float *z, float mul)
+// read bmm/mag/aux register
+static int bmx160_bmm_reg_write(struct bmx160 *bmx160, uint8_t bmm_addr, const void *data, unsigned int size)
 {
-    //const uint8_t *src = *psrc;
+    int err;
+    const uint8_t *bmm_data = data;
+    for (unsigned int i = 0; i < size; i++) {
 
-    int16_t s16val = 0;
+        err = bmx160_reg_write(bmx160, BMX160_REG_MAG_IF_3_WRD, bmm_data, 1);
+        if (err)
+            return err;
 
-    unpack_s16(&src, &s16val);
-    *x = s16val * mul;
+        err = bmx160_reg_write(bmx160, BMX160_REG_MAG_IF_1_RDA, &bmm_addr, 1);
+        if (err)
+            return err;
 
-    unpack_s16(&src, &s16val);
-    *y = s16val * mul;
+        err = bmx160_bmm_operation_wait(bmx160);
+        if (err)
+            return err;
 
-    unpack_s16(&src, &s16val);
-    *z = s16val * mul;
+        bmm_addr++;
+        bmm_data++; 
+    }
+
+    return 0;
+}
+
+// read bmm/mag/aux register
+static int bmx160_bmm_reg_read(struct bmx160 *bmx160, uint8_t bmm_addr, void *data, unsigned int size)
+{
+    int err;
+    uint8_t *bmm_data = data;
+    for (unsigned int i = 0; i < size; i++) {
+
+        err = bmx160_reg_write(bmx160, BMX160_REG_MAG_IF_1_RDA, &bmm_addr, 1);
+        if (err)
+            return err;
+
+        err = bmx160_bmm_operation_wait(bmx160);
+        if (err)
+            return err;
+        // assumes MAG_IF_0:mag_rd_burst=0b00=1byte (default) but should work regardless
+        err = bmx160_reg_read(bmx160, BMX160_REG_MAG_DATA, bmm_data, 1);
+        if (err)
+            return err;
+
+        bmm_addr++;
+        bmm_data++; 
+    }
 
     return 0;
 }
 
 
+
+
+static int32_t bmm150_compensate_xy(const struct bmm150_trim_regs *tregs,
+				  int16_t xy, uint16_t rhall, bool is_x)
+{
+	int8_t txy1, txy2;
+	int16_t val;
+	uint16_t prevalue;
+	int32_t temp1, temp2, temp3;
+
+	if (xy == BMM150_XY_OVERFLOW_VAL) {
+		return INT32_MIN;
+	}
+
+	if (!rhall) {
+		rhall = tregs->xyz1;
+	}
+
+	if (is_x) {
+		txy1 = tregs->x1;
+		txy2 = tregs->x2;
+	} else {
+		txy1 = tregs->y1;
+		txy2 = tregs->y2;
+	}
+
+	prevalue = (uint16_t)((((int32_t)tregs->xyz1) << 14) / rhall);
+
+	val = (int16_t)((prevalue) - ((uint16_t)0x4000));
+
+	temp1 = (((int32_t)tregs->xy2) * ((((int32_t)val) * ((int32_t)val)) >> 7));
+
+	temp2 = ((int32_t)val) * ((int32_t)(((int16_t)tregs->xy1) << 7));
+
+	temp3 = (((((temp1 + temp2) >> 9) +
+		((int32_t)0x100000)) * ((int32_t)(((int16_t)txy2) +
+		((int16_t)0xA0)))) >> 12);
+
+	val = ((int16_t)((((int32_t)xy) * temp3) >> 13)) + (((int16_t)txy1) << 3);
+
+	return (int32_t)val;
+}
+
+static int32_t bmm150_compensate_z(const struct bmm150_trim_regs *tregs,
+				 int16_t z, uint16_t rhall)
+{
+	int32_t val, temp1, temp2;
+	int16_t temp3;
+
+	if (z == BMM150_Z_OVERFLOW_VAL) {
+		return INT32_MIN;
+	}
+
+	temp1 = (((int32_t)(z - tregs->z4)) << 15);
+
+	temp2 = ((((int32_t)tregs->z3) *
+		((int32_t)(((int16_t)rhall) - ((int16_t)tregs->xyz1)))) >> 2);
+
+	temp3 = ((int16_t)(((((int32_t)tregs->z1) *
+		((((int16_t)rhall) << 1))) + (1 << 15)) >> 16));
+
+	val = ((temp1 - temp2) / (tregs->z2 + temp3));
+
+	return val;
+}
+
+static int bmx160_fetch_mag(struct bmx160 *bmx160, struct sensor_mag_data *smd)
+{
+	int err;
+
+    uint8_t *buf = bmx160->_rxbuf; // todo check allignment
+    unsigned int size = sizeof(uint16_t) * 4;
+    err = bmx160_reg_read(bmx160, BMX160_REG_MAG_DATA, buf, size);
+	if (err)
+        return err;
+
+	int16_t raw_x, raw_y, raw_z;
+    buf += unpack_s16(buf, &raw_x);
+    buf += unpack_s16(buf, &raw_y);
+    buf += unpack_s16(buf, &raw_z);
+	uint16_t rhall = 0;
+    buf += unpack_u16(buf, &rhall);
+
+    smd->smd_x_is_valid = 1;
+	smd->smd_x = bmm150_compensate_xy(&bmx160->_trim_regs,
+							raw_x, rhall, true);
+    smd->smd_y_is_valid = 1;
+    smd->smd_y = bmm150_compensate_xy(&bmx160->_trim_regs,
+							raw_y, rhall, false);
+    smd->smd_z_is_valid = 1;
+    smd->smd_z = bmm150_compensate_z(&bmx160->_trim_regs,
+							raw_z, rhall);
+
+	return 0;
+}
+
+#if 0 // TODO
 static void bmx160_bosch_delay_ms(uint32_t n)
 {
     os_time_delay((OS_TICKS_PER_SEC * n) / 1000 + 1);
@@ -229,7 +425,7 @@ static int8_t bmx160_bosch_write(uint8_t _id, uint8_t reg_addr, uint8_t *data, u
 {
     return bmx160_reg_write(g_bmx160_dev, reg_addr, data, len);
 }
-
+#endif
 
 static int bmx160_sd_set_config(struct sensor *sensor, void *cfg)
 {
@@ -248,35 +444,19 @@ bmx160_sd_read(struct sensor *sensor,
 {
     int err;
     struct bmx160 *bmx160 = (struct bmx160 *)SENSOR_GET_DEVICE(sensor);
-    struct bmi160_dev *bmi160_dev = bmx160_get_bmi160_dev(bmx160);
 
     uint8_t status = 0;
-    err = bmx160_reg_read(bmx160, BMI160_STATUS_ADDR, &status, 1);
-    assert(!err);
+    err = bmx160_reg_read(bmx160, BMX160_REG_STATUS, &status, 1);
+    if (err)
+        return err;
     //BMX160_LOG_DEBUG("status 0x%02X\n", status);
 
     if (sensor_type & SENSOR_TYPE_ACCELEROMETER) {
         if (!(status & BMX160_STATUS_DRDY_ACC)) // TODO
             return SYS_EBUSY;
-#if 0
-        struct bmi160_sensor_data accel;
-        err = bmi160_get_sensor_data(BMI160_ACCEL_ONLY, &accel, NULL, bmi160_dev);
-        if (err)
-            return err;
 
-        struct sensor_accel_data sad;
-        // TODO confirm scaling
-        sad.sad_x = accel.x; // * STANDARD_ACCEL_GRAVITY;
-        sad.sad_y = accel.y; // * STANDARD_ACCEL_GRAVITY;
-        sad.sad_z = accel.z; // * STANDARD_ACCEL_GRAVITY;
-        sad.sad_x_is_valid = 1;
-        sad.sad_y_is_valid = 1;
-        sad.sad_z_is_valid = 1;
-
-#else
-        (void) bmi160_dev;
         uint8_t *tmp = bmx160->_rxbuf;
-        err = bmx160_reg_read(bmx160, BMX160_REG_ACC_DATA, tmp, sizeof(int16_t) * 3);
+        err = bmx160_reg_read(bmx160, BMX160_REG_ACC_DATA, tmp, 6);
         if (err)
             return err;
 
@@ -285,8 +465,9 @@ bmx160_sd_read(struct sensor *sensor,
             .sad_y_is_valid = 1,
             .sad_z_is_valid = 1
         };
-        bmx160_unpack_s16xyz(tmp, &sad.sad_x, &sad.sad_y, &sad.sad_z, 1.0);
-#endif
+        float tounit = BMX160_SI_UNIT_FACT_ACC;
+        bmx160_unpack_s16xyz(tmp, &sad.sad_x, &sad.sad_y, &sad.sad_z, tounit);
+
         err = cb_func(sensor, cb_arg, &sad, SENSOR_TYPE_ACCELEROMETER);
         if (err)
             return err;
@@ -297,23 +478,9 @@ bmx160_sd_read(struct sensor *sensor,
         if (!(status & BMX160_STATUS_DRDY_GYR))
             return SYS_EBUSY;
 
-#if 0
-        struct bmi160_sensor_data gyro;
-        err = bmi160_get_sensor_data(BMI160_GYRO_ONLY, NULL, &gyro, bmi160_dev);
-        if (err)
-            return err;
-        struct sensor_gyro_data sgd;
-        // TODO scaling?
-        sgd.sgd_x = gyro.x;
-        sgd.sgd_y = gyro.y;
-        sgd.sgd_z = gyro.z;
-        sgd.sgd_x_is_valid = 1;
-        sgd.sgd_y_is_valid = 1;
-        sgd.sgd_z_is_valid = 1;
-#else
 
         uint8_t *tmp = bmx160->_rxbuf;
-        err = bmx160_reg_read(bmx160, BMX160_REG_GYR_DATA, tmp, sizeof(int16_t) * 3);
+        err = bmx160_reg_read(bmx160, BMX160_REG_GYR_DATA, tmp, 6);
         if (err)
             return err;
         struct sensor_gyro_data sgd = {
@@ -321,8 +488,10 @@ bmx160_sd_read(struct sensor *sensor,
             .sgd_y_is_valid = 1,
             .sgd_z_is_valid = 1
         };
-        bmx160_unpack_s16xyz(tmp, &sgd.sgd_x, &sgd.sgd_y, &sgd.sgd_z, 1.0);
-#endif
+
+        float tounit = BMX160_SI_UNIT_FACT_GYR;
+        bmx160_unpack_s16xyz(tmp, &sgd.sgd_x, &sgd.sgd_y, &sgd.sgd_z, tounit);
+
         err = cb_func(sensor, cb_arg, &sgd, SENSOR_TYPE_GYROSCOPE);
 		if (err)
 			return err;
@@ -332,9 +501,9 @@ bmx160_sd_read(struct sensor *sensor,
 
         if (!(status & BMX160_STATUS_DRDY_MAG))
             return SYS_EBUSY;
-
+#if 0
         uint8_t *tmp = bmx160->_rxbuf;
-        err = bmx160_reg_read(bmx160, BMX160_REG_MAG_DATA, tmp, sizeof(int16_t) * 3);
+        err = bmx160_reg_read(bmx160, BMX160_REG_MAG_DATA, tmp, 6);
 		if (err)
 			return err;
 
@@ -343,8 +512,15 @@ bmx160_sd_read(struct sensor *sensor,
             .smd_y_is_valid = 1,
             .smd_z_is_valid = 1
         };
-        bmx160_unpack_s16xyz(tmp, &smd.smd_x, &smd.smd_y, &smd.smd_z, 1.0);
 
+        float tounit = BMX160_SI_UNIT_FACT_MAG;
+        bmx160_unpack_s16xyz(tmp, &smd.smd_x, &smd.smd_y, &smd.smd_z, tounit);
+#else
+        struct sensor_mag_data smd = { 0 };
+        err = bmx160_fetch_mag(bmx160, &smd);
+        if (err)
+            return err;
+#endif
         err = cb_func(sensor, cb_arg, &smd, SENSOR_TYPE_MAGNETIC_FIELD);
 		if (err)
 			return err;
@@ -392,25 +568,6 @@ static struct sensor_driver bmx160_sensor_driver = {
     //.sd_handle_interrupt   = bmx160_sd_handle_interrupt,
 };
 
-static unsigned int bmx160_get_cmd_post_delay_ms(uint8_t cmd_val)
-{
-    switch(cmd_val) {
-        case BMX160_CMD_SOFTRESET:
-            return 300; // 300 in manual 1 in bmi160 driver
-        case BMX160_CMD_PMU_MODE_ACC_NORMAL:
-        case BMX160_CMD_PMU_MODE_ACC_LOW_POWER:
-            return 4 + 1;
-        case BMX160_CMD_PMU_MODE_GYR_NORMAL:
-        case BMX160_CMD_PMU_MODE_GYR_FAST_STARTUP:
-            return 80 + 1; // from suspend mode
-        case BMX160_CMD_PMU_MODE_MAG_SUSPEND:
-        case BMX160_CMD_PMU_MODE_MAG_NORMAL:
-        case BMX160_CMD_PMU_MODE_MAG_LOW_POWER:
-            return 1 + 1;
-        default:
-            return 0;
-    }
-}
 
 static int bmx160_reg_write_list(struct bmx160 *bmx160, const struct bmx160_regval *list, int len)
 {
@@ -430,6 +587,79 @@ static int bmx160_reg_write_list(struct bmx160 *bmx160, const struct bmx160_regv
         }
     }
     return 0;
+}
+static int bmx160_config_mag(struct bmx160 *bmx160, const struct bmx160_cfg *cfg)
+{
+#if 0
+        static const struct bmx160_regval conf[] = {
+            {BMX160_REG_CMD, BMX160_CMD_PMU_MODE_MAG_NORMAL},
+            {BMX160_REG_MAG_IF_0_CFG, 0x80}, 
+            // reg 0x4B = 0b0000001 --> power_control=1 (default)
+            {BMX160_REG_MAG_IF_3_WRD, 0x01},
+            {BMX160_REG_MAG_IF_2_WRA, 0x4B},
+            // reg 0x51 = 0x01 --> REPXY=1
+            {BMX160_REG_MAG_IF_3_WRD, 0x01},
+            {BMX160_REG_MAG_IF_2_WRA, 0x51},
+            // reg 0x52 = 0xE --> REPZ=0xE
+            {BMX160_REG_MAG_IF_3_WRD, 0x0E},
+            {BMX160_REG_MAG_IF_2_WRA, 0x52},
+            // reg 0x4C = (1 << 1) --> Opmode = forced mode
+            {BMX160_REG_MAG_IF_3_WRD, 0x02},
+            {BMX160_REG_MAG_IF_2_WRA, 0x4C},
+            // read 0x42 
+            {BMX160_REG_MAG_IF_1_RDA, 0x42},
+            {BMX160_REG_MAG_CONF, BMX160_MAG_CONF_ODR_100HZ},
+            // enable "Data mode" with hall data
+            {BMX160_REG_MAG_IF_0_CFG, 0} //BMX160_MAG_IF_0_CFG_RD_BURST_6},
+        };
+#else
+    int err;
+    uint8_t regval;
+
+    regval = BMX160_CMD_PMU_MODE_MAG_NORMAL;
+    err = bmx160_reg_write(bmx160, BMX160_REG_CMD, &regval, 1);
+    assert(!err);
+
+    err = bmx160_bmm_reg_read(bmx160, BMM150_REG_TRIM_START, &bmx160->_trim_regs, sizeof(bmx160->_trim_regs));
+    assert(!err);
+
+    /*static const struct bmx160_regval bmx_conf[] = {
+     *    {BMX160_REG_CMD, BMX160_CMD_PMU_MODE_MAG_NORMAL},
+     *    //{BMX160_REG_MAG_IF_0_CFG, 0x80}
+     *};*/
+
+
+    static const struct bmx160_regval bmm_conf[] = {
+        // reg 0x4B = 0b0000001 --> power_control=1 (default)
+        {BMM150_REG_POWER, 0x01},
+        // reg 0x51 = 0x01 --> REPXY=1
+        {BMM150_REG_REP_XY, 0x01},
+        {BMM150_REG_REP_Z, 0x0E},
+        // reg 0x4C = (1 << 1) --> Opmode = forced mode
+        {BMM150_REG_OPMODE_ODR, 0x02}
+    };
+    for (int i = 0; i < ARRAY_LEN(bmm_conf); i++) {
+        err = bmx160_bmm_reg_write(bmx160, bmm_conf[i].reg_addr, &bmm_conf[i].reg_val, 1);
+        assert(!err);
+    }
+
+    // unclear if/why this read needed. used in manual example
+    err = bmx160_bmm_reg_read(bmx160, BMM150_REG_X_L, &regval, 1);
+    assert(!err);
+    (void)regval;
+
+    // enable "Data mode" 
+    regval = 0; //BMX160_MAG_IF_0_CFG_RD_BURST_6},
+    err = bmx160_reg_write(bmx160, BMX160_REG_MAG_IF_0_CFG, &regval, 1);
+    assert(!err);
+
+    regval = BMX160_MAG_CONF_ODR_100HZ;
+    err = bmx160_reg_write(bmx160, BMX160_REG_MAG_CONF, &regval, 1);
+    assert(!err);
+
+    return 0;
+
+#endif
 }
 
 int bmx160_config(struct bmx160 *bmx160, const struct bmx160_cfg *cfg)
@@ -479,7 +709,7 @@ int bmx160_config(struct bmx160 *bmx160, const struct bmx160_cfg *cfg)
 
     // sanity check on magic chip_id
     uint8_t chip_id = 0;
-    err = bmx160_reg_read(bmx160, BMI160_CHIP_ID_ADDR, &chip_id, 1);
+    err = bmx160_reg_read(bmx160, BMX160_REG_CHIP_ID, &chip_id, 1);
     assert(!err);
     assert(chip_id == 0xD8);
 
@@ -507,31 +737,9 @@ int bmx160_config(struct bmx160 *bmx160, const struct bmx160_cfg *cfg)
     }
 #endif
     if (en_mask & SENSOR_TYPE_MAGNETIC_FIELD) {
-        // Configure for normal "polled" reads from DATA register (i.e. same as for other sensors)
-        // This long init sequence is but implied by manual but makes no sens. doesent work without it
-        static const struct bmx160_regval conf[] = {
-            {BMX160_REG_CMD, BMX160_CMD_PMU_MODE_MAG_NORMAL},
-            {BMX160_REG_MAG_IF_0_CFG, 0x80}, 
-            {BMX160_REG_MAG_IF_3_WRD, 0x01},
-            {BMX160_REG_MAG_IF_2_WRA, 0x4B},
-            {BMX160_REG_MAG_IF_3_WRD, 0x01},
-            {BMX160_REG_MAG_IF_2_WRA, 0x51},
-            {BMX160_REG_MAG_IF_3_WRD, 0x0E},
-            {BMX160_REG_MAG_IF_2_WRA, 0x52},
-            // need to write these magic numbers to MAG_IF 3,2,1 before switching to "data mode".
-            {BMX160_REG_MAG_IF_3_WRD, 0x02},
-            {BMX160_REG_MAG_IF_2_WRA, 0x4C},
-            {BMX160_REG_MAG_IF_1_RDA, 0x42},
-            {BMX160_REG_MAG_CONF, BMX160_MAG_CONF_ODR_12_5HZ},
-            // enable "Data mode" with hall data
-            {BMX160_REG_MAG_IF_0_CFG, 0} //BMX160_MAG_IF_0_CFG_RD_BURST_6},
-        };
-        err = bmx160_reg_write_list(bmx160, conf, ARRAY_LEN(conf));
+        err = bmx160_config_mag(bmx160, cfg);
         assert(!err);
     }
-
-    
-
 
 
 #if 0
@@ -562,7 +770,7 @@ int bmx160_init(struct os_dev *dev, void *arg)
     assert(!err);
     
     struct bmx160 *bmx160 = (struct bmx160 *)dev;
-
+#if 0
     g_bmx160_dev = bmx160; // temp hack. TODO
 
     struct bmi160_dev *bmi160_dev = bmx160_get_bmi160_dev(bmx160);
@@ -571,7 +779,7 @@ int bmx160_init(struct os_dev *dev, void *arg)
     bmi160_dev->read = bmx160_bosch_read;
     bmi160_dev->write = bmx160_bosch_write;
     bmi160_dev->delay_ms = bmx160_bosch_delay_ms;
-
+#endif
 
     struct sensor *sensor = &bmx160->sensor;
 
@@ -587,8 +795,6 @@ int bmx160_init(struct os_dev *dev, void *arg)
 
     err = sensor_set_interface(sensor, arg);
     assert(!err);
-
-    //sensor->s_next_run = OS_TIMEOUT_NEVER;
 
     err = sensor_mgr_register(sensor);
     assert(!err);

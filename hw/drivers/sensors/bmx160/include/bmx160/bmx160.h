@@ -32,13 +32,31 @@ extern "C" {
 struct bmx160_cfg {
 };
 
+struct bmm150_trim_regs {
+	int8_t x1;
+	int8_t y1;
+	uint16_t reserved1;
+	uint8_t reserved2;
+	int16_t z4;
+	int8_t x2;
+	int8_t y2;
+	uint16_t reserved3;
+	int16_t z2;
+	uint16_t z1;
+	uint16_t xyz1;
+	int16_t z3;
+	int8_t xy2;
+	uint8_t xy1;
+} __attribute__((packed));
+
 struct bmx160 {
     struct os_dev dev;
     struct sensor sensor;
     struct bmx160_cfg cfg;
     uint8_t _txbuf[8];
     uint8_t _rxbuf[12];
-    uint64_t _priv_bmi160[74/8]; // private data 64 bit aligned
+    struct bmm150_trim_regs _trim_regs;
+    //uint64_t _priv_bmi160[74/8]; // private data 64 bit aligned
     //uint64_t _priv_bmm150[74/8]; // private data 64 bit aligned
 };
 
