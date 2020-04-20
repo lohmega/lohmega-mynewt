@@ -31,31 +31,30 @@ extern "C" {
 
 struct bmx160_cfg {
 };
-
-struct bmm150_trim_regs {
-	int8_t x1;
-	int8_t y1;
-	uint16_t reserved1;
-	uint8_t reserved2;
-	int16_t z4;
-	int8_t x2;
-	int8_t y2;
-	uint16_t reserved3;
-	int16_t z2;
-	uint16_t z1;
-	uint16_t xyz1;
-	int16_t z3;
-	int8_t xy2;
-	uint8_t xy1;
-} __attribute__((packed));
+#if 0
+struct bmm150_trim_regs
+{
+    int8_t dig_x1;
+    int8_t dig_y1;
+    int8_t dig_x2;
+    int8_t dig_y2;
+    uint16_t dig_z1;
+    int16_t dig_z2;
+    int16_t dig_z3;
+    int16_t dig_z4;
+    uint8_t dig_xy1;
+    int8_t dig_xy2;
+    uint16_t dig_xyz1;
+};
+#endif
 
 struct bmx160 {
     struct os_dev dev;
     struct sensor sensor;
     struct bmx160_cfg cfg;
     uint8_t _txbuf[8];
-    uint8_t _rxbuf[12];
-    struct bmm150_trim_regs _trim_regs;
+    uint8_t _rxbuf[16];
+    uint64_t _priv[32];
 };
 
 int bmx160_init(struct os_dev *, void *arg);

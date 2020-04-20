@@ -11,71 +11,37 @@
 
 
 #include <stdint.h>
-
-#ifndef BIT
-#define BIT(b)			(1 << (b))
-#endif
+#include "bmm150_defs.h"
 
 #define BMM150_REG_CHIP_ID         0x40
-#define BMM150_CHIP_ID_VAL         0x32
-
 #define BMM150_REG_X_L             0x42
 #define BMM150_REG_X_M             0x43
 #define BMM150_REG_Y_L             0x44
 #define BMM150_REG_Y_M             0x45
-//#define BMM150_SHIFT_XY_L          3
 #define BMM150_REG_Z_L             0x46
 #define BMM150_REG_Z_M             0x47
-//#define BMM150_SHIFT_Z_L           1
 #define BMM150_REG_RHALL_L         0x48
 #define BMM150_REG_RHALL_M         0x49
-//#define BMM150_SHIFT_RHALL_L       2
-
 #define BMM150_REG_INT_STATUS      0x4A
-
 #define BMM150_REG_POWER           0x4B
-#define BMM150_MASK_POWER_CTL      BIT(0)
-
 #define BMM150_REG_OPMODE_ODR      0x4C
-#define BMM150_MASK_OPMODE         (BIT(2) | BIT(1))
-#define BMM150_SHIFT_OPMODE        1
-#define BMM150_MODE_NORMAL         0x00
-#define BMM150_MODE_FORCED         0x01
-#define BMM150_MODE_SLEEP          0x03
-#define BMM150_MASK_ODR            (BIT(5) | BIT(4) | BIT(3))
-#define BMM150_SHIFT_ODR           3
-
 #define BMM150_REG_LOW_THRESH      0x4F
 #define BMM150_REG_HIGH_THRESH     0x50
 #define BMM150_REG_REP_XY          0x51
 #define BMM150_REG_REP_Z           0x52
 #define BMM150_REG_REP_DATAMASK    0xFF
-
 #define BMM150_REG_TRIM_START      0x5D
 #define BMM150_REG_TRIM_END        0x71
 
-#define BMM150_XY_OVERFLOW_VAL     -4096
-#define BMM150_Z_OVERFLOW_VAL      -16384
+float bmm150_compensate_xf(const struct bmm150_trim_regs *trim, uint16_t data_rhall, int16_t mag_data_x);
+float bmm150_compensate_yf(const struct bmm150_trim_regs *trim, uint16_t data_rhall, int16_t mag_data_y);
+float bmm150_compensate_zf(const struct bmm150_trim_regs *trim, uint16_t data_rhall, int16_t mag_data_z);
 
-#define BMM150_REGVAL_TO_REPXY(regval)     (((regval) * 2) + 1)
-#define BMM150_REGVAL_TO_REPZ(regval)      ((regval) + 1)
-#define BMM150_REPXY_TO_REGVAL(rep)        (((rep) - 1) / 2)
-#define BMM150_REPZ_TO_REGVAL(rep)         ((rep) - 1)
 
-#define BMM150_REG_INT                     0x4D
 
-#define BMM150_REG_INT_DRDY                0x4E
-#define BMM150_MASK_DRDY_EN                BIT(7)
-#define BMM150_SHIFT_DRDY_EN               7
-#define BMM150_DRDY_INT3                   BIT(6)
-#define BMM150_MASK_DRDY_Z_EN              BIT(5)
-#define BMM150_MASK_DRDY_Y_EN              BIT(4)
-#define BMM150_MASK_DRDY_X_EN              BIT(3)
-#define BMM150_MASK_DRDY_DR_POLARITY       BIT(2)
-#define BMM150_SHIFT_DRDY_DR_POLARITY      2
-#define BMM150_MASK_DRDY_LATCHING          BIT(1)
-#define BMM150_MASK_DRDY_INT3_POLARITY     BIT(0)
-
+int16_t bmm150_compensate_x(const struct bmm150_trim_regs *trim, uint16_t data_rhall, int16_t mag_data_x);
+int16_t bmm150_compensate_y(const struct bmm150_trim_regs *trim, uint16_t data_rhall, int16_t mag_data_y);
+int16_t bmm150_compensate_z(const struct bmm150_trim_regs *trim, uint16_t data_rhall, int16_t mag_data_z);
 
 #endif /* __SENSOR_BMM150_H__ */
 
