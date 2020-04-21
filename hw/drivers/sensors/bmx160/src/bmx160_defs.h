@@ -2,7 +2,7 @@
 #define __BMX160_DEFS_H__
 
 #define BMX160_REG_CHIP_ID                  (0x00)
-#define BMX160_REG_ERROR_REG                (0x02)
+#define BMX160_REG_ERROR                    (0x02)
 #define BMX160_REG_PMU_STATUS               (0x03)
 #define BMX160_REG_MAG_DATA                 (0x04) // s16 * xyz
 #define BMX160_REG_RHALL_DATA               (0x0A) // u16

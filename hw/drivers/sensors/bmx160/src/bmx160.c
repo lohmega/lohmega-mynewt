@@ -59,7 +59,7 @@ struct bmx160_priv {
 #define BMX160_ITF_LOCK_TIMEOUT (OS_TIMEOUT_NEVER)
 #define BMX160_RW_TIMEOUT (OS_TICKS_PER_SEC / 10)
 #define BMX160_DEBUG_ENABLE (1)  // TODO disable this
-#define BMX160_RAW_VALUES (1)  // TODO disable this
+#define BMX160_RAW_VALUES (0)  // TODO disable this
 
 
 
@@ -242,7 +242,7 @@ static int bmx160_reg_write(struct bmx160 *bmx160,
     if (err)
         return err;
 
-    BMX160_LOG_DEBUG("WR_REG:0x%02X=0x%02X\n", addr, bmx160->_txbuf[1]);
+    //BMX160_LOG_DEBUG("WR_REG:0x%02X=0x%02X\n", addr, bmx160->_txbuf[1]);
 
     if (addr == BMX160_REG_CMD) {
         assert(size == 1);
@@ -252,24 +252,6 @@ static int bmx160_reg_write(struct bmx160 *bmx160,
             os_time_delay((OS_TICKS_PER_SEC * t_ms) / 1000 + 1);
     }
 
-    // note: manual says err_reg should not be used for success verification
-    if (BMX160_DEBUG_ENABLE) {
-        uint8_t err_reg = 0;
-        err = bmx160_reg_read(bmx160, BMX160_REG_CHIP_ID, &err_reg, 1);
-        assert(!err);
-        /*
-         * in bosch driver bmi160 driver, err_reg bit mask is in practice 0b00000111 (0x7), 
-         * but manual says 0xff or 0x5F - depending on what page(s) read.
-         * err_reg seems to be 0b01011000 after each write which implies "drop_cmd_err" etc. 
-         * - bug in code or documentation?
-         * */
-        /*uint8_t mask = 0x5F;
-         *err_reg &= mask; // removeve reserved bits*/
-        if (err_reg) {
-            BMX160_LOG_ERROR("WR_reg: addr=0x%02X, data[0]=0x%02X, size=%zu, err_reg=0x%02X\n", 
-                addr, bmx160->_txbuf[1], size, err_reg);
-        }
-    }
 
 	return 0;
 }
@@ -346,73 +328,6 @@ static int bmx160_bmm_reg_read(struct bmx160 *bmx160, uint8_t bmm_addr, void *da
     return 0;
 }
 
-#if 0
-static int32_t bmm150_compensate_xy(const struct bmm150_trim_regs *tregs,
-				  int16_t xy, uint16_t rhall, bool is_x)
-{
-	int8_t txy1, txy2;
-	int16_t val;
-	uint16_t prevalue;
-	int32_t temp1, temp2, temp3;
-
-	if (xy == BMM150_XY_OVERFLOW_VAL) {
-		return INT32_MIN;
-	}
-
-	if (!rhall) {
-		rhall = tregs->xyz1;
-	}
-
-	if (is_x) {
-		txy1 = tregs->x1;
-		txy2 = tregs->x2;
-	} else {
-		txy1 = tregs->y1;
-		txy2 = tregs->y2;
-	}
-
-	prevalue = (uint16_t)((((int32_t)tregs->xyz1) << 14) / rhall);
-
-	val = (int16_t)((prevalue) - ((uint16_t)0x4000));
-
-	temp1 = (((int32_t)tregs->xy2) * ((((int32_t)val) * ((int32_t)val)) >> 7));
-
-	temp2 = ((int32_t)val) * ((int32_t)(((int16_t)tregs->xy1) << 7));
-
-	temp3 = (((((temp1 + temp2) >> 9) +
-		((int32_t)0x100000)) * ((int32_t)(((int16_t)txy2) +
-		((int16_t)0xA0)))) >> 12);
-
-	val = ((int16_t)((((int32_t)xy) * temp3) >> 13)) + (((int16_t)txy1) << 3);
-
-	return (int32_t)val;
-}
-
-static int32_t bmm150_compensate_z(const struct bmm150_trim_regs *tregs,
-				 int16_t z, uint16_t rhall)
-{
-	int32_t val, temp1, temp2;
-	int16_t temp3;
-
-	if (z == BMM150_Z_OVERFLOW_VAL) {
-		return INT32_MIN;
-	}
-
-	temp1 = (((int32_t)(z - tregs->z4)) << 15);
-
-	temp2 = ((((int32_t)tregs->z3) *
-		((int32_t)(((int16_t)rhall) - ((int16_t)tregs->xyz1)))) >> 2);
-
-	temp3 = ((int16_t)(((((int32_t)tregs->z1) *
-		((((int16_t)rhall) << 1))) + (1 << 15)) >> 16));
-
-	val = ((temp1 - temp2) / (tregs->z2 + temp3));
-
-	return val;
-}
-#else
-#endif
-
 static int bmm150_reg_read_trim(struct bmx160 *bmx160, struct bmm150_trim_regs *trim)
 {
     int err;
@@ -471,7 +386,6 @@ static int bmx160_fetch_mag(struct bmx160 *bmx160, struct sensor_mag_data *smd)
 	if (err)
         return err;
     
-
 	int16_t raw_x, raw_y, raw_z;
     buf += unpack_s16(buf, &raw_x);
     buf += unpack_s16(buf, &raw_y);
@@ -515,7 +429,6 @@ bmx160_sd_read(struct sensor *sensor,
 {
     int err;
     struct bmx160 *bmx160 = (struct bmx160 *)SENSOR_GET_DEVICE(sensor);
-    //struct bmx160_priv *priv = bmx160_get_priv(bmx160);
 
     uint8_t status = 0;
     err = bmx160_reg_read(bmx160, BMX160_REG_STATUS, &status, 1);
@@ -573,27 +486,12 @@ bmx160_sd_read(struct sensor *sensor,
 
         if (!(status & BMX160_STATUS_DRDY_MAG))
             return SYS_EBUSY;
-#if 1
-        (void) bmx160_fetch_mag;
-        uint8_t *tmp = bmx160->_rxbuf;
-        err = bmx160_reg_read(bmx160, BMX160_REG_MAG_DATA, tmp, 6);
-		if (err)
-			return err;
 
-        struct sensor_mag_data smd = {
-            .smd_x_is_valid = 1,
-            .smd_y_is_valid = 1,
-            .smd_z_is_valid = 1
-        };
-
-        float tounit = 1.0f; // BMX160_SI_UNIT_FACT_MAG; // TODO
-        bmx160_unpack_s16xyz(tmp, &smd.smd_x, &smd.smd_y, &smd.smd_z, tounit);
-#else
         struct sensor_mag_data smd = { 0 };
         err = bmx160_fetch_mag(bmx160, &smd);
         if (err)
             return err;
-#endif
+
         err = cb_func(sensor, cb_arg, &smd, SENSOR_TYPE_MAGNETIC_FIELD);
 		if (err)
 			return err;
@@ -646,10 +544,10 @@ static int bmx160_config_acc(struct bmx160 *bmx160, const struct bmx160_cfg *cfg
 {
     int err;
     static const struct bmx160_regval regs[] = {
+        {BMX160_REG_CMD, BMX160_CMD_PMU_MODE_ACC_NORMAL},
         {BMX160_REG_ACC_CONF, BMX160_ACC_CONF_BWP_NORMAL_AVG4 | 
                               BMX160_ACC_CONF_ODR_100HZ},
-        {BMX160_REG_ACC_RANGE, BMX160_ACC_RANGE_2G},
-        {BMX160_REG_CMD, BMX160_CMD_PMU_MODE_ACC_NORMAL}
+        {BMX160_REG_ACC_RANGE, BMX160_ACC_RANGE_2G}
     };
 
     for (int i = 0; i < ARRAY_LEN(regs); i++) {
@@ -664,10 +562,10 @@ static int bmx160_config_gyr(struct bmx160 *bmx160, const struct bmx160_cfg *cfg
 {
     int err;
     static const struct bmx160_regval regs[] = {
+        {BMX160_REG_CMD, BMX160_CMD_PMU_MODE_GYR_NORMAL},
         {BMX160_REG_GYR_CONF, BMX160_GYR_CONF_BWP_NORMAL | 
                               BMX160_GYR_CONF_ODR_100HZ},
-        {BMX160_REG_GYR_RANGE, BMX160_GYR_RANGE_2000_DPS},
-        {BMX160_REG_CMD, BMX160_CMD_PMU_MODE_GYR_NORMAL}
+        {BMX160_REG_GYR_RANGE, BMX160_GYR_RANGE_2000_DPS}
     };
 
     for (int i = 0; i < ARRAY_LEN(regs); i++) {
@@ -681,70 +579,108 @@ static int bmx160_config_gyr(struct bmx160 *bmx160, const struct bmx160_cfg *cfg
 static int bmx160_config_mag(struct bmx160 *bmx160, const struct bmx160_cfg *cfg)
 {
     int err;
-    uint8_t regval;
+    uint8_t regval = 0;
+
+#if 0 // do not work!?
+#define BMM150_SET_REG(REG, VAL) do { \
+       uint8_t __val = (VAL); \
+       int __err = bmx160_bmm_reg_write(bmx160, (REG), &__val, 1); \
+       assert(!__err); \
+    } while(0)
+
+#else // works!?
+#define BMM150_SET_REG(BMM_ADDR, REG_VAL) do { \
+       uint8_t __addr = (BMM_ADDR); \
+       uint8_t __val = (REG_VAL); \
+       int __err = 0; \
+       __err = bmx160_reg_write(bmx160, BMX160_REG_MAG_IF_3_WRD, &__val, 1); \
+       assert(!__err); \
+       __err = bmx160_reg_write(bmx160, BMX160_REG_MAG_IF_2_WRA, &__addr, 1); \
+       assert(!__err); \
+    } while(0)
+
+    (void) bmx160_bmm_reg_write;
+#endif
+
+#define BMM150_GET_REG(BMM_ADDR, DST) do { \
+       int __err = bmx160_bmm_reg_read(bmx160, (BMM_ADDR), (DST), 1); \
+       assert(!__err); \
+    } while(0)
+
+#define BMX160_SET_REG(REG, VAL) do { \
+       uint8_t __val = (VAL); \
+       int __err = bmx160_reg_write(bmx160, (REG), &__val, 1); \
+       assert(!__err); \
+    } while(0)
+
+#define BMX160_GET_REG(REG, DST) do { \
+       int __err = bmx160_reg_read(bmx160, (REG), (DST), 1); \
+       assert(!__err); \
+    } while(0)
+
+#define BMX160_ASSERT_NO_ERR() do { \
+        if (BMX160_DEBUG_ENABLE) { \
+            uint8_t __err_reg = 0; \
+            int __err = bmx160_reg_read(bmx160, BMX160_REG_ERROR, &__err_reg, 1); \
+            assert(!__err); \
+            if (__err_reg & 0xFF) { \
+                BMX160_LOG_ERROR("%d:mag_pmu: err_reg=0x%02X\n", __LINE__, __err_reg); \
+            }  \
+            assert(!__err_reg); \
+        } \
+    } while(0)
 
     struct bmx160_priv *priv = bmx160_get_priv(bmx160);
 
+    BMX160_ASSERT_NO_ERR();
+    BMX160_SET_REG(BMX160_REG_CMD, BMX160_CMD_PMU_MODE_MAG_NORMAL);
+    BMX160_SET_REG(BMX160_REG_MAG_IF_0_CFG, 0x80);
+    /* if soft/hard reset needed it should problably happen here!?
+     *   BMM150_SET_REG(BMM150_REG_POWER, 0x0); // POR reset 
+     * or 
+     *   BMM150_SET_REG(BMM150_REG_POWER, 0x01 | 0x82);  // soft reset
+     * os_time_delay((OS_TICKS_PER_SEC * 3) / 1000); // reset wait
+     */ 
 
-    /* TODO bmm150 soft reset. 
-     * {BMM150_REG_POWER, 0x00 },  --> POR reset 
-     * or write/add soft reset bit mask = 0x82 to BMM150_REG_POWER */
-    // reg 0x4B = 0b0000001 --> power_control=1 (default)
-    if (1) {
-        regval = 0x01;
-        err = bmx160_bmm_reg_write(bmx160, BMM150_REG_POWER, &regval, 1);
-        assert(!err);
-        os_time_delay((OS_TICKS_PER_SEC * 3) / 1000);
-    }
+    os_time_delay((OS_TICKS_PER_SEC * 30) / 1000);
+    BMX160_ASSERT_NO_ERR();
 
-    /*regval = 0x80;
-     *err = bmx160_reg_write(bmx160, BMX160_REG_MAG_IF_0_CFG, &regval, 1);
-     *assert(!err);*/
+    /* 0x01 --> power_control=1 (default) */
+    // This seems not be needed and set ERR_REG to 0x80
+    //BMM150_SET_REG(BMM150_REG_POWER, 0x01); 
+    os_time_delay((OS_TICKS_PER_SEC * 30) / 1000);
+    BMX160_ASSERT_NO_ERR();
 
-    static const struct bmx160_regval bmm_regs[] = {
-        // reg 0x51 = 0x01 --> REPXY=1
-        {BMM150_REG_REP_XY, 0x01},
-        {BMM150_REG_REP_Z, 0x0E},
-        // reg 0x4C = (1 << 1) --> Opmode = forced mode
-        {BMM150_REG_OPMODE_ODR, 0x02}
-    };
-    for (int i = 0; i < ARRAY_LEN(bmm_regs); i++) {
-        err = bmx160_bmm_reg_write(bmx160, bmm_regs[i].reg_addr, &bmm_regs[i].reg_val, 1);
-        assert(!err);
-    }
-
-#if 0
-    err = bmx160_bmm_reg_read(bmx160, BMM150_REG_CHIP_ID, &regval, 1);
-    assert(!err);
+    // sanity check to verify the on-board bmm150 responds
+    BMM150_GET_REG(BMM150_REG_CHIP_ID, &regval);
     assert(regval == 0x32);
-#endif
     
+    if (BMX160_DEBUG_ENABLE) {
+        // verify bmm150 and bmx160 both reports mag normal mode (0x01) 
+        // (as somtimes they disagree and nothing works)
+        BMM150_GET_REG(BMM150_REG_POWER, &regval);
+        assert((regval & 0x01) == 0x01); // power_control==1
+
+        BMX160_GET_REG(BMX160_REG_PMU_STATUS, &regval);
+        assert((regval & 0x03) == 0x01);
+    }
+
     err = bmm150_reg_read_trim(bmx160, &priv->trim_regs);
     assert(!err);
-   
+
+    BMM150_SET_REG(BMM150_REG_REP_XY, 0x01);
+    BMM150_SET_REG(BMM150_REG_REP_Z, 0x0E);
+    BMM150_SET_REG(BMM150_REG_OPMODE_ODR, 0x02); // Opmode = forced mode
 
     // unclear if/why this read needed. used in manual example
-    err = bmx160_bmm_reg_read(bmx160, BMM150_REG_X_L, &regval, 1);
-    assert(!err);
-    (void)regval;
+    BMM150_GET_REG(BMM150_REG_DATA_X_L, &regval);
+    (void) regval; 
 
-    if (1) {
-        regval = BMX160_CMD_PMU_MODE_MAG_NORMAL;
-        err = bmx160_reg_write(bmx160, BMX160_REG_CMD, &regval, 1);
-        assert(!err);
-    }
-
-    regval = BMX160_MAG_CONF_ODR_100HZ;
-    err = bmx160_reg_write(bmx160, BMX160_REG_MAG_CONF, &regval, 1);
-    assert(!err);
-
-    // enable "Data mode" 
-    regval = 0; //BMX160_MAG_IF_0_CFG_RD_BURST_8;
-    err = bmx160_reg_write(bmx160, BMX160_REG_MAG_IF_0_CFG, &regval, 1);
-    assert(!err);
-
+    BMX160_SET_REG(BMX160_REG_MAG_CONF, BMX160_MAG_CONF_ODR_12_5HZ);
+    BMX160_SET_REG(BMX160_REG_MAG_IF_0_CFG, 0); //BMX160_MAG_IF_0_CFG_RD_BURST_6},
 
     return 0;
+
 }
 
 int bmx160_config(struct bmx160 *bmx160, const struct bmx160_cfg *cfg)
@@ -771,7 +707,6 @@ int bmx160_config(struct bmx160 *bmx160, const struct bmx160_cfg *cfg)
     assert(!err);
     assert(chip_id == 0xD8);
 
-
     if (en_mask & SENSOR_TYPE_ACCELEROMETER) {
         err = bmx160_config_acc(bmx160, cfg);
         assert(!err);
@@ -787,6 +722,17 @@ int bmx160_config(struct bmx160 *bmx160, const struct bmx160_cfg *cfg)
         assert(!err);
     }
 
+    // note: manual says err_reg should not be used for success verification
+    if (BMX160_DEBUG_ENABLE) {
+        /* in bosch driver bmi160 driver, err_reg bit mask is in practice 0b00000111 (0x7), 
+         * but manual says 0xFF or 0x5F - depending on what page(s) read.  */
+        uint8_t err_reg = 0;
+        err = bmx160_reg_read(bmx160, BMX160_REG_ERROR, &err_reg, 1);
+        assert(!err);
+        if (err_reg & 0xFF) {
+            BMX160_LOG_ERROR("err_reg=0x%02X\n", err_reg);
+        }
+    }
 
     err = sensor_set_type_mask(sensor, en_mask);
     assert(!err);

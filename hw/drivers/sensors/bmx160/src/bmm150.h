@@ -14,12 +14,12 @@
 #include "bmm150_defs.h"
 
 #define BMM150_REG_CHIP_ID         0x40
-#define BMM150_REG_X_L             0x42
-#define BMM150_REG_X_M             0x43
-#define BMM150_REG_Y_L             0x44
-#define BMM150_REG_Y_M             0x45
-#define BMM150_REG_Z_L             0x46
-#define BMM150_REG_Z_M             0x47
+#define BMM150_REG_DATA_X_L        0x42
+#define BMM150_REG_DATA_X_M        0x43
+#define BMM150_REG_DATA_Y_L        0x44
+#define BMM150_REG_DATA_Y_M        0x45
+#define BMM150_REG_DATA_Z_L        0x46
+#define BMM150_REG_DATA_Z_M        0x47
 #define BMM150_REG_RHALL_L         0x48
 #define BMM150_REG_RHALL_M         0x49
 #define BMM150_REG_INT_STATUS      0x4A
