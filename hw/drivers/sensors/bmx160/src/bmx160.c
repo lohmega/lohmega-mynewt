@@ -287,7 +287,7 @@ static int bmx160_bmm_reg_write(struct bmx160 *bmx160, uint8_t bmm_addr, const v
         if (err)
             return err;
 
-        err = bmx160_reg_write(bmx160, BMX160_REG_MAG_IF_1_RDA, &bmm_addr, 1);
+        err = bmx160_reg_write(bmx160, BMX160_REG_MAG_IF_2_WRA, &bmm_addr, 1);
         if (err)
             return err;
 
@@ -581,26 +581,11 @@ static int bmx160_config_mag(struct bmx160 *bmx160, const struct bmx160_cfg *cfg
     int err;
     uint8_t regval = 0;
 
-#if 0 // do not work!?
 #define BMM150_SET_REG(REG, VAL) do { \
        uint8_t __val = (VAL); \
        int __err = bmx160_bmm_reg_write(bmx160, (REG), &__val, 1); \
        assert(!__err); \
     } while(0)
-
-#else // works!?
-#define BMM150_SET_REG(BMM_ADDR, REG_VAL) do { \
-       uint8_t __addr = (BMM_ADDR); \
-       uint8_t __val = (REG_VAL); \
-       int __err = 0; \
-       __err = bmx160_reg_write(bmx160, BMX160_REG_MAG_IF_3_WRD, &__val, 1); \
-       assert(!__err); \
-       __err = bmx160_reg_write(bmx160, BMX160_REG_MAG_IF_2_WRA, &__addr, 1); \
-       assert(!__err); \
-    } while(0)
-
-    (void) bmx160_bmm_reg_write;
-#endif
 
 #define BMM150_GET_REG(BMM_ADDR, DST) do { \
        int __err = bmx160_bmm_reg_read(bmx160, (BMM_ADDR), (DST), 1); \
@@ -618,7 +603,7 @@ static int bmx160_config_mag(struct bmx160 *bmx160, const struct bmx160_cfg *cfg
        assert(!__err); \
     } while(0)
 
-#define BMX160_ASSERT_NO_ERR() do { \
+#define BMX160_ASSERT_ERR_REG_ZERO() do { \
         if (BMX160_DEBUG_ENABLE) { \
             uint8_t __err_reg = 0; \
             int __err = bmx160_reg_read(bmx160, BMX160_REG_ERROR, &__err_reg, 1); \
@@ -632,7 +617,6 @@ static int bmx160_config_mag(struct bmx160 *bmx160, const struct bmx160_cfg *cfg
 
     struct bmx160_priv *priv = bmx160_get_priv(bmx160);
 
-    BMX160_ASSERT_NO_ERR();
     BMX160_SET_REG(BMX160_REG_CMD, BMX160_CMD_PMU_MODE_MAG_NORMAL);
     BMX160_SET_REG(BMX160_REG_MAG_IF_0_CFG, 0x80);
     /* if soft/hard reset needed it should problably happen here!?
@@ -642,28 +626,24 @@ static int bmx160_config_mag(struct bmx160 *bmx160, const struct bmx160_cfg *cfg
      * os_time_delay((OS_TICKS_PER_SEC * 3) / 1000); // reset wait
      */ 
 
-    os_time_delay((OS_TICKS_PER_SEC * 30) / 1000);
-    BMX160_ASSERT_NO_ERR();
+    /* 0x01 --> power_control=1 (default).
+     * note that this operation seems to set ERR_REG to 0x80 (cmd_drop)
+     * but is required and used in manual example(s). */
+    BMM150_SET_REG(BMM150_REG_POWER, 0x01); 
 
-    /* 0x01 --> power_control=1 (default) */
-    // This seems not be needed and set ERR_REG to 0x80
-    //BMM150_SET_REG(BMM150_REG_POWER, 0x01); 
-    os_time_delay((OS_TICKS_PER_SEC * 30) / 1000);
-    BMX160_ASSERT_NO_ERR();
-
-    // sanity check to verify the on-board bmm150 responds
-    BMM150_GET_REG(BMM150_REG_CHIP_ID, &regval);
-    assert(regval == 0x32);
-    
     if (BMX160_DEBUG_ENABLE) {
         // verify bmm150 and bmx160 both reports mag normal mode (0x01) 
         // (as somtimes they disagree and nothing works)
         BMM150_GET_REG(BMM150_REG_POWER, &regval);
-        assert((regval & 0x01) == 0x01); // power_control==1
+        assert((regval & 0x01) == 0x01); // power_control==1=normal_mode
 
         BMX160_GET_REG(BMX160_REG_PMU_STATUS, &regval);
         assert((regval & 0x03) == 0x01);
     }
+
+    // sanity check to verify the on-board bmm150 responds
+    BMM150_GET_REG(BMM150_REG_CHIP_ID, &regval);
+    assert(regval == 0x32);
 
     err = bmm150_reg_read_trim(bmx160, &priv->trim_regs);
     assert(!err);
@@ -725,11 +705,13 @@ int bmx160_config(struct bmx160 *bmx160, const struct bmx160_cfg *cfg)
     // note: manual says err_reg should not be used for success verification
     if (BMX160_DEBUG_ENABLE) {
         /* in bosch driver bmi160 driver, err_reg bit mask is in practice 0b00000111 (0x7), 
-         * but manual says 0xFF or 0x5F - depending on what page(s) read.  */
+         * but manual says 0xFF or 0x5F - depending on what page(s) read.  
+         * writeing power_control_bit to BMM150_REG_POWER @ 0x4B seems to set ERR_REG to 0x80 (cmd_dropped)
+         * */
         uint8_t err_reg = 0;
         err = bmx160_reg_read(bmx160, BMX160_REG_ERROR, &err_reg, 1);
         assert(!err);
-        if (err_reg & 0xFF) {
+        if (err_reg & 0x7F) {
             BMX160_LOG_ERROR("err_reg=0x%02X\n", err_reg);
         }
     }

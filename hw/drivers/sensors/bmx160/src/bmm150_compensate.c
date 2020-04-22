@@ -128,9 +128,6 @@ int16_t bmm150_compensate_x(const struct bmm150_trim_regs *trim, uint16_t data_r
     else if (trim->dig_xyz1 != 0)
         process_comp_x0 = trim->dig_xyz1;
     else
-        process_comp_x0 = 0;
-
-    if (process_comp_x0 == 0)
         return  BMM150_OVERFLOW_OUTPUT;
 
     process_comp_x1 = ((int32_t)trim->dig_xyz1) * 16384;
@@ -177,9 +174,6 @@ int16_t bmm150_compensate_y(const struct bmm150_trim_regs *trim, uint16_t data_r
     else if (trim->dig_xyz1 != 0)
         process_comp_y0 = trim->dig_xyz1;
     else
-        process_comp_y0 = 0;
-
-    if (process_comp_y0 == 0)
         return  BMM150_OVERFLOW_OUTPUT;
 
     process_comp_y1 = (((int32_t)trim->dig_xyz1) * 16384) / process_comp_y0;
