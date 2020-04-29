@@ -202,12 +202,8 @@ main(int argc, char **argv)
     /* Initialize all packages. */
     sysinit();
 
- //   init_timer();
 
-    if (MYNEWT_VAL(SENSOR_CLI)) {
-        //pass. read on request
-    } 
-    else {
+    if (MYNEWT_VAL(APP_SENSOR_TEST_AUTO_DUMP_ALL)) {
         // Initialize the callout for a timer event.
         os_callout_init(&sensor_callout, os_eventq_dflt_get(), sensor_timer_ev_cb, NULL);
         os_callout_reset(&sensor_callout, OS_TICKS_PER_SEC);
