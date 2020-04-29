@@ -617,8 +617,15 @@ static int bmx160_config_mag(struct bmx160 *bmx160, const struct bmx160_cfg *cfg
 
     struct bmx160_priv *priv = bmx160_get_priv(bmx160);
 
+    /* Undocumented and supposed unused bits in BMX160. see BMI160 manual for
+     * details. Some chips have a unresponding magnetometer without this
+     * write. Implied fix in Bosch forum thread
+     * "BMX160-Magnetometer-data-not-changing". */ 
+    BMX160_SET_REG(BMX160_REG_IF_CONF, 0x20);
+
     BMX160_SET_REG(BMX160_REG_CMD, BMX160_CMD_PMU_MODE_MAG_NORMAL);
     BMX160_SET_REG(BMX160_REG_MAG_IF_0_CFG, 0x80);
+
     /* if soft/hard reset needed it should problably happen here!?
      *   BMM150_SET_REG(BMM150_REG_POWER, 0x0); // POR reset 
      * or 
@@ -657,7 +664,7 @@ static int bmx160_config_mag(struct bmx160 *bmx160, const struct bmx160_cfg *cfg
     (void) regval; 
 
     BMX160_SET_REG(BMX160_REG_MAG_CONF, BMX160_MAG_CONF_ODR_12_5HZ);
-    BMX160_SET_REG(BMX160_REG_MAG_IF_0_CFG, 0); //BMX160_MAG_IF_0_CFG_RD_BURST_6},
+    BMX160_SET_REG(BMX160_REG_MAG_IF_0_CFG, BMX160_MAG_IF_0_CFG_RD_BURST_8);
 
     return 0;
 
