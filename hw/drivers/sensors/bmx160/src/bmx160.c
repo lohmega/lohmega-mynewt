@@ -404,9 +404,10 @@ static int bmx160_fetch_mag(struct bmx160 *bmx160, struct sensor_mag_data *smd)
         smd->smd_z = raw_z;
     }
     else {
-        smd->smd_x = bmm150_compensate_xf(&priv->trim_regs, rhall, raw_x);
-        smd->smd_y = bmm150_compensate_yf(&priv->trim_regs, rhall, raw_y);
-        smd->smd_z = bmm150_compensate_zf(&priv->trim_regs, rhall, raw_z);
+        float f = BMX160_SI_UNIT_FACT_MAG;
+        smd->smd_x = f * bmm150_compensate_xf(&priv->trim_regs, rhall, raw_x);
+        smd->smd_y = f * bmm150_compensate_yf(&priv->trim_regs, rhall, raw_y);
+        smd->smd_z = f * bmm150_compensate_zf(&priv->trim_regs, rhall, raw_z);
     }
 
 	return 0;
