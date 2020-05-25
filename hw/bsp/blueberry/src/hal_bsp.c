@@ -108,6 +108,16 @@ static struct sensor_itf i2c_1_itf_si1 = {
 };
 #endif
 
+#if MYNEWT_VAL(BMX160_ONB)
+#include <bmx160/bmx160.h>
+static struct bmx160 bmx160 = {0};
+
+static struct sensor_itf i2c_1_itf_bmx = {
+    .si_type = SENSOR_ITF_I2C,
+    .si_num = 1,
+    .si_addr = 0b1101000
+};
+#endif
 
 
 /*
@@ -287,6 +297,26 @@ config_si1133_sensor(void)
     return 0;
 }
 
+int
+config_bmx160_sensor(void)
+{
+#if MYNEWT_VAL(BMX160_ONB)
+    int rc;
+    struct os_dev *dev;
+    struct bmx160_cfg cfg;
+
+    dev = (struct os_dev *) os_dev_open("bmx160_0", OS_TIMEOUT_NEVER, NULL);
+    assert(dev != NULL);
+
+    memset(&cfg, 0, sizeof(cfg));
+    // TODO config things
+    rc = bmx160_config((struct bmx160 *)dev, &cfg); 
+    SYSINIT_PANIC_ASSERT(rc == 0);
+
+    os_dev_close(dev);
+#endif
+    return 0;
+}
 
 
 
@@ -320,6 +350,11 @@ sensor_dev_create(void)
     assert(rc == 0);
 #endif
     
+#if MYNEWT_VAL(BMX160_ONB)
+    rc = os_dev_create((struct os_dev *) &bmx160, "bmx160_0",
+      OS_DEV_INIT_PRIMARY, 0, bmx160_init, (void *)&i2c_1_itf_bmx);
+    assert(rc == 0);
+#endif
 }
 
 

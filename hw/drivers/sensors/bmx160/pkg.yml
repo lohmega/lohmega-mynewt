@@ -17,29 +17,20 @@
 # under the License.
 #
 
-# Settings this app defines.
-syscfg.defs:
-    APP_SENSOR_TEST_AUTO_DUMP_ALL: 
-        description: 'auto iterate all sensors and print to console'
-        value: 1
+pkg.name: hw/drivers/sensors/bmx160
+pkg.description: Driver for Bosch BMX160 absolute orientation sensor
+pkg.keywords:
+    - i2c
+    - sensor
 
-# Settings this app overrides.
-syscfg.vals:
-    # Route console to RTT
-    CONSOLE_UART: 0
-    CONSOLE_RTT: 1
-    SHELL_TASK: "1"
-    APP_SENSOR_TEST_AUTO_DUMP_ALL: 1
-    # Include names for statistics.
-    STATS_NAMES: 1
+pkg.deps:
+    - "@apache-mynewt-core/hw/hal"
+    - "@apache-mynewt-core/kernel/os"
+    - "@apache-mynewt-core/hw/sensor"
+    - "@apache-mynewt-core/hw/util/i2cn"
+    - "@apache-mynewt-core/sys/log/modlog"
 
-    SENSOR_CLI: 1
+pkg.req_apis:
+    - log
+    - stats
 
-    I2C_1: "1"
-    LSM6DSL_ONB: "0"
-    LIS2MDL_ONB: "0"
-    LPS22HB_ONB: "0"
-    HTS221_ONB: "0"
-    MPU6500_ONB: "0"
-    SI1133_ONB: "0"
-    BMX160_ONB: "1"

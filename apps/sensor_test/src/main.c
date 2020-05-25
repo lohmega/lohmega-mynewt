@@ -182,7 +182,7 @@ static void sensor_timer_ev_cb(struct os_event *ev) {
                              &sensor_data_cb,
                              0,
                              OS_TICKS_PER_SEC/10);
-            if (rc) console_printf("Error: failed to read sensor\r\n");
+            if (rc) console_printf("Error: failed to read sensor %i\n", rc);
         }
 
         i++;
@@ -190,17 +190,6 @@ static void sensor_timer_ev_cb(struct os_event *ev) {
     
     os_callout_reset(&sensor_callout, OS_TICKS_PER_SEC*5);
 }
-
-
-static void init_timer(void) {
-    /*
-     * Initialize the callout for a timer event.
-     */
-    os_callout_init(&sensor_callout, os_eventq_dflt_get(), sensor_timer_ev_cb, NULL);
-    os_callout_reset(&sensor_callout, OS_TICKS_PER_SEC);
-
-}
-
 
 int
 main(int argc, char **argv)
@@ -213,7 +202,12 @@ main(int argc, char **argv)
     /* Initialize all packages. */
     sysinit();
 
-    init_timer();
+
+    if (MYNEWT_VAL(APP_SENSOR_TEST_AUTO_DUMP_ALL)) {
+        // Initialize the callout for a timer event.
+        os_callout_init(&sensor_callout, os_eventq_dflt_get(), sensor_timer_ev_cb, NULL);
+        os_callout_reset(&sensor_callout, OS_TICKS_PER_SEC);
+    }
 
     os_time_delay(OS_TICKS_PER_SEC*5);
     
