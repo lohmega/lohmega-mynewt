@@ -17,7 +17,7 @@
 # under the License.
 #
 
-repo.name: loligo-mynewt
+repo.name: lohmega-mynewt
 repo.versions:
     "0.0.0": "master"
     "0.0.1": "master"
