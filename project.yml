@@ -1,4 +1,4 @@
-project.name: "loligo-mynewt"
+project.name: "lohmega-mynewt"
 
 project.repositories:
     - apache-mynewt-core
