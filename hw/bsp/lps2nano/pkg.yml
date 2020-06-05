@@ -30,7 +30,7 @@ pkg.keywords:
 pkg.cflags:
     # Nordic SDK files require these defines.
     - '-DNRF52'
-   
+
 
 pkg.cflags.HARDFLOAT:
     - -mfloat-abi=hard -mfpu=fpv4-sp-d16
@@ -39,7 +39,7 @@ pkg.deps:
     - '@apache-mynewt-core/hw/mcu/nordic/nrf52xxx'
     - '@apache-mynewt-core/kernel/os'
     - '@apache-mynewt-core/libc/baselibc'
-    
+
 
 pkg.deps.BLE_DEVICE:
     - '@apache-mynewt-core/hw/drivers/nimble/nrf52'
@@ -57,14 +57,14 @@ pkg.deps.DW1000_DEVICE_0:
     - '@mynewt-dw1000-core/hw/drivers/dw1000'
 
 pkg.deps.LSM6DSL_ONB:
-    - '@loligo-mynewt/hw/drivers/sensors/lsm6dsl'
+    - '@lohmega-mynewt/hw/drivers/sensors/lsm6dsl'
 
 pkg.deps.LIS2MDL_ONB:
-    - '@loligo-mynewt/hw/drivers/sensors/lis2mdl'
+    - '@lohmega-mynewt/hw/drivers/sensors/lis2mdl'
 
 pkg.deps.LPS22HB_ONB:
-    - '@loligo-mynewt/hw/drivers/sensors/lps22hb'
-    
+    - '@lohmega-mynewt/hw/drivers/sensors/lps22hb'
+
 pkg.init:
   config_lsm6dsl_sensor: 400
   config_lis2mdl_sensor: 400

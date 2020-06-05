@@ -1,5 +1,5 @@
-# loligo-mynewt
-Apache Mynewt BSP and Drivers for Loligo boards
+# lohmega-mynewt
+Apache Mynewt BSP and Drivers for Lohmega boards
 
 ## Example: Sensor test app with Blueberry
 
