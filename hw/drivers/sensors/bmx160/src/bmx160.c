@@ -2,15 +2,15 @@
  * BMI160 BMX160 difference (incomplete)
  * =====================================
  *
- * Note the names in datasheet differs! 
+ * Note the names in datasheet differs!
  * <reg_addr>:<reg_name>:<description>
  * | BMI160                  | BMX160
  * | 0x4F:MAG_IF_4:wr_data   | 0x4F:MAG_IF_3:wr_data |
- * | 0x4E:MAG_IF_3:wr_addr   | 0x4E:MAG_IF_2:wr_addr | 
+ * | 0x4E:MAG_IF_3:wr_addr   | 0x4E:MAG_IF_2:wr_addr |
  * | 0x4D:MAG_IF_2:rd_addr   | 0x4D:MAG_IF_1:rd_addr |
  * | 0x4C:MAG_IF_1:config    | 0x4C:MAG_IF_0:config |
  * | 0x4B:MAG_IF_0:i2c_addr  | 0x4B:NA:reserved |
- */ 
+ */
 
 #include <string.h>
 #include <errno.h>
@@ -53,7 +53,7 @@ struct bmx160_priv {
         SENSOR_TYPE_ACCELEROMETER | \
         SENSOR_TYPE_TEMPERATURE | \
         SENSOR_TYPE_GYROSCOPE | \
-        SENSOR_TYPE_MAGNETIC_FIELD) 
+        SENSOR_TYPE_MAGNETIC_FIELD)
 
 
 #define BMX160_ITF_LOCK_TIMEOUT (OS_TIMEOUT_NEVER)
@@ -145,7 +145,7 @@ static int bmx160_reg_read_i2c(
     if (err) {
         BMX160_LOG_ERROR("I2C read failed at address 0x%02X length %u err: %d\n",
                    addr, size, err);
-		goto done;
+        goto done;
     }
 
 done:
@@ -171,10 +171,10 @@ static int bmx160_reg_read(struct bmx160 *bmx160,
             break;
         case SENSOR_ITF_SPI:
         default:
-			return SYS_EINVAL;
+            return SYS_EINVAL;
     }
 
-	return SYS_EINVAL;
+    return SYS_EINVAL;
 }
 
 
@@ -201,11 +201,11 @@ static unsigned int bmx160_get_cmd_post_delay_ms(uint8_t cmd_val)
 static int bmx160_reg_write(struct bmx160 *bmx160,
              uint8_t addr,
              const uint8_t *data,
-			 size_t size)
+             size_t size)
 {
     int err;
     if (size > (sizeof(bmx160->_txbuf) - 1))
-		return SYS_EINVAL;
+        return SYS_EINVAL;
 
     uint8_t *tmp = bmx160->_txbuf;
     *tmp++ = addr;
@@ -215,9 +215,9 @@ static int bmx160_reg_write(struct bmx160 *bmx160,
 
     struct sensor_itf *itf = SENSOR_GET_ITF(&bmx160->sensor);
     err = sensor_itf_lock(itf, BMX160_ITF_LOCK_TIMEOUT);
-	if (err) {
-		return err;
-	}
+    if (err) {
+        return err;
+    }
 
     switch(itf->si_type) {
         case SENSOR_ITF_I2C: {
@@ -233,7 +233,7 @@ static int bmx160_reg_write(struct bmx160 *bmx160,
 
         case SENSOR_ITF_SPI:
         default:
-			err = SYS_EINVAL;
+            err = SYS_EINVAL;
             break;
     }
 
@@ -246,20 +246,20 @@ static int bmx160_reg_write(struct bmx160 *bmx160,
 
     if (addr == BMX160_REG_CMD) {
         assert(size == 1);
-        uint8_t cmd_val = bmx160->_txbuf[1]; 
+        uint8_t cmd_val = bmx160->_txbuf[1];
         unsigned int t_ms = bmx160_get_cmd_post_delay_ms(cmd_val);
-        if (t_ms) 
+        if (t_ms)
             os_time_delay((OS_TICKS_PER_SEC * t_ms) / 1000 + 1);
     }
 
 
-	return 0;
+    return 0;
 }
 
 // wait on bmm/mag/aux operation to complete
 static int bmx160_bmm_operation_wait(struct bmx160 *bmx160)
 {
-    int err; 
+    int err;
     uint8_t status = 0;
 
     for (int i = 0; i < 512; i++) {
@@ -296,7 +296,7 @@ static int bmx160_bmm_reg_write(struct bmx160 *bmx160, uint8_t bmm_addr, const v
             return err;
 
         bmm_addr++;
-        bmm_data++; 
+        bmm_data++;
     }
 
     return 0;
@@ -322,7 +322,7 @@ static int bmx160_bmm_reg_read(struct bmx160 *bmx160, uint8_t bmm_addr, void *da
             return err;
 
         bmm_addr++;
-        bmm_data++; 
+        bmm_data++;
     }
 
     return 0;
@@ -376,21 +376,21 @@ static int bmm150_reg_read_trim(struct bmx160 *bmx160, struct bmm150_trim_regs *
 
 static int bmx160_fetch_mag(struct bmx160 *bmx160, struct sensor_mag_data *smd)
 {
-	int err;
+    int err;
 
     struct bmx160_priv *priv = bmx160_get_priv(bmx160);
     uint8_t *buf = bmx160->_rxbuf;
 
     unsigned int size = sizeof(uint16_t) * 4;
     err = bmx160_reg_read(bmx160, BMX160_REG_MAG_DATA, buf, size);
-	if (err)
+    if (err)
         return err;
-    
-	int16_t raw_x, raw_y, raw_z;
+
+    int16_t raw_x, raw_y, raw_z;
     buf += unpack_s16(buf, &raw_x);
     buf += unpack_s16(buf, &raw_y);
     buf += unpack_s16(buf, &raw_z);
-	uint16_t rhall = 0;
+    uint16_t rhall = 0;
     buf += unpack_u16(buf, &rhall);
 
 
@@ -410,7 +410,7 @@ static int bmx160_fetch_mag(struct bmx160 *bmx160, struct sensor_mag_data *smd)
         smd->smd_z = f * bmm150_compensate_zf(&priv->trim_regs, rhall, raw_z);
     }
 
-	return 0;
+    return 0;
 }
 
 static int bmx160_sd_set_config(struct sensor *sensor, void *cfg)
@@ -479,8 +479,8 @@ bmx160_sd_read(struct sensor *sensor,
         bmx160_unpack_s16xyz(tmp, &sgd.sgd_x, &sgd.sgd_y, &sgd.sgd_z, tounit);
 
         err = cb_func(sensor, cb_arg, &sgd, SENSOR_TYPE_GYROSCOPE);
-		if (err)
-			return err;
+        if (err)
+            return err;
     }
 
     if (sensor_type & SENSOR_TYPE_MAGNETIC_FIELD) {
@@ -494,8 +494,8 @@ bmx160_sd_read(struct sensor *sensor,
             return err;
 
         err = cb_func(sensor, cb_arg, &smd, SENSOR_TYPE_MAGNETIC_FIELD);
-		if (err)
-			return err;
+        if (err)
+            return err;
     }
 
     if (sensor_type & SENSOR_TYPE_TEMPERATURE) {
@@ -546,7 +546,7 @@ static int bmx160_config_acc(struct bmx160 *bmx160, const struct bmx160_cfg *cfg
     int err;
     static const struct bmx160_regval regs[] = {
         {BMX160_REG_CMD, BMX160_CMD_PMU_MODE_ACC_NORMAL},
-        {BMX160_REG_ACC_CONF, BMX160_ACC_CONF_BWP_NORMAL_AVG4 | 
+        {BMX160_REG_ACC_CONF, BMX160_ACC_CONF_BWP_NORMAL_AVG4 |
                               BMX160_ACC_CONF_ODR_100HZ},
         {BMX160_REG_ACC_RANGE, BMX160_ACC_RANGE_2G}
     };
@@ -564,7 +564,7 @@ static int bmx160_config_gyr(struct bmx160 *bmx160, const struct bmx160_cfg *cfg
     int err;
     static const struct bmx160_regval regs[] = {
         {BMX160_REG_CMD, BMX160_CMD_PMU_MODE_GYR_NORMAL},
-        {BMX160_REG_GYR_CONF, BMX160_GYR_CONF_BWP_NORMAL | 
+        {BMX160_REG_GYR_CONF, BMX160_GYR_CONF_BWP_NORMAL |
                               BMX160_GYR_CONF_ODR_100HZ},
         {BMX160_REG_GYR_RANGE, BMX160_GYR_RANGE_2000_DPS}
     };
@@ -621,26 +621,26 @@ static int bmx160_config_mag(struct bmx160 *bmx160, const struct bmx160_cfg *cfg
     /* Undocumented and supposed unused bits in BMX160. see BMI160 manual for
      * details. Some chips have a unresponding magnetometer without this
      * write. Implied fix in Bosch forum thread
-     * "BMX160-Magnetometer-data-not-changing". */ 
+     * "BMX160-Magnetometer-data-not-changing". */
     BMX160_SET_REG(BMX160_REG_IF_CONF, 0x20);
 
     BMX160_SET_REG(BMX160_REG_CMD, BMX160_CMD_PMU_MODE_MAG_NORMAL);
     BMX160_SET_REG(BMX160_REG_MAG_IF_0_CFG, 0x80);
 
     /* if soft/hard reset needed it should problably happen here!?
-     *   BMM150_SET_REG(BMM150_REG_POWER, 0x0); // POR reset 
-     * or 
+     *   BMM150_SET_REG(BMM150_REG_POWER, 0x0); // POR reset
+     * or
      *   BMM150_SET_REG(BMM150_REG_POWER, 0x01 | 0x82);  // soft reset
      * os_time_delay((OS_TICKS_PER_SEC * 3) / 1000); // reset wait
-     */ 
+     */
 
     /* 0x01 --> power_control=1 (default).
      * note that this operation seems to set ERR_REG to 0x80 (cmd_drop)
      * but is required and used in manual example(s). */
-    BMM150_SET_REG(BMM150_REG_POWER, 0x01); 
+    BMM150_SET_REG(BMM150_REG_POWER, 0x01);
 
     if (BMX160_DEBUG_ENABLE) {
-        // verify bmm150 and bmx160 both reports mag normal mode (0x01) 
+        // verify bmm150 and bmx160 both reports mag normal mode (0x01)
         // (as somtimes they disagree and nothing works)
         BMM150_GET_REG(BMM150_REG_POWER, &regval);
         assert((regval & 0x01) == 0x01); // power_control==1=normal_mode
@@ -662,7 +662,7 @@ static int bmx160_config_mag(struct bmx160 *bmx160, const struct bmx160_cfg *cfg
 
     // unclear if/why this read needed. used in manual example
     BMM150_GET_REG(BMM150_REG_DATA_X_L, &regval);
-    (void) regval; 
+    (void) regval;
 
     BMX160_SET_REG(BMX160_REG_MAG_CONF, BMX160_MAG_CONF_ODR_12_5HZ);
     BMX160_SET_REG(BMX160_REG_MAG_IF_0_CFG, BMX160_MAG_IF_0_CFG_RD_BURST_8);
@@ -679,9 +679,9 @@ int bmx160_config(struct bmx160 *bmx160, const struct bmx160_cfg *cfg)
     // TODO en_mask from config
     sensor_type_t en_mask = (0
         | SENSOR_TYPE_ACCELEROMETER
-        | SENSOR_TYPE_GYROSCOPE 
-        | SENSOR_TYPE_MAGNETIC_FIELD 
-    ); 
+        | SENSOR_TYPE_GYROSCOPE
+        | SENSOR_TYPE_MAGNETIC_FIELD
+    );
 
     struct sensor *sensor = &bmx160->sensor;
 
@@ -712,8 +712,8 @@ int bmx160_config(struct bmx160 *bmx160, const struct bmx160_cfg *cfg)
 
     // note: manual says err_reg should not be used for success verification
     if (BMX160_DEBUG_ENABLE) {
-        /* in bosch driver bmi160 driver, err_reg bit mask is in practice 0b00000111 (0x7), 
-         * but manual says 0xFF or 0x5F - depending on what page(s) read.  
+        /* in bosch driver bmi160 driver, err_reg bit mask is in practice 0b00000111 (0x7),
+         * but manual says 0xFF or 0x5F - depending on what page(s) read.
          * writeing power_control_bit to BMM150_REG_POWER @ 0x4B seems to set ERR_REG to 0x80 (cmd_dropped)
          * */
         uint8_t err_reg = 0;
@@ -733,9 +733,9 @@ int bmx160_config(struct bmx160 *bmx160, const struct bmx160_cfg *cfg)
 int bmx160_init(struct os_dev *dev, void *arg)
 {
     int err;
-    err = log_register(dev->od_name, &_log, &log_console_handler, NULL, LOG_SYSLEVEL);
+    err = log_register("bmx160", &_log, &log_console_handler, NULL, LOG_SYSLEVEL);
     assert(!err);
-    
+
     struct bmx160 *bmx160 = (struct bmx160 *)dev;
     struct sensor *sensor = &bmx160->sensor;
 
@@ -744,8 +744,8 @@ int bmx160_init(struct os_dev *dev, void *arg)
     // TODO all sensor types
     err = sensor_set_driver(sensor,
             (SENSOR_TYPE_GYROSCOPE |
-            SENSOR_TYPE_MAGNETIC_FIELD | 
-            SENSOR_TYPE_ACCELEROMETER), 
+            SENSOR_TYPE_MAGNETIC_FIELD |
+            SENSOR_TYPE_ACCELEROMETER),
                            &bmx160_sensor_driver);
     assert(!err);
 
