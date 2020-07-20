@@ -32,6 +32,7 @@
 #include "defs/error.h"
 #include <shell/shell.h>
 #include <console/console.h>
+#include <streamer/streamer.h>
 
 #if MYNEWT_VAL(UWB_DEVICE_0)
 #include <uwb/uwb.h>
@@ -42,7 +43,7 @@
 
 #if MYNEWT_VAL(RGBPWM_CLI)
 
-static int rgbpwm_cli_cmd(int argc, char **argv);
+static int rgbpwm_cli_cmd(const struct shell_cmd *cmd, int argc, char **argv, struct streamer *streamer);
 
 #if MYNEWT_VAL(SHELL_CMD_HELP)
 const struct shell_param cmd_rgbpwm_param[] = {
@@ -57,32 +58,26 @@ const struct shell_cmd_help cmd_rgbpwm_help = {
 };
 #endif
 
-static struct shell_cmd shell_rgbpwm_cmd = {
-    .sc_cmd = "rgb",
-    .sc_cmd_func = rgbpwm_cli_cmd,
-#if MYNEWT_VAL(SHELL_CMD_HELP)
-    .help = &cmd_rgbpwm_help
-#endif
-};
+static struct shell_cmd shell_rgbpwm_cmd = SHELL_CMD_EXT("rgb", rgbpwm_cli_cmd, &cmd_rgbpwm_help);
 
 static void
-rgbpwm_cli_too_few_args(void)
+rgbpwm_cli_too_few_args(struct streamer *streamer)
 {
-    console_printf("Too few args\n");
+    streamer_printf(streamer, "Too few args\n");
 }
 
 
 static int
-rgbpwm_cli_cmd(int argc, char **argv)
+rgbpwm_cli_cmd(const struct shell_cmd *cmd, int argc, char **argv, struct streamer *streamer)
 {
     uint16_t addr=0xffff;
     uint64_t target_wrgb = RGBPWM_RANDOM;
-    uint32_t delay_ms = 0;
+    uint32_t delay_ms = 1;
 
     if (!strcmp(argv[1], "set")) {
 
         if (argc < 3) {
-            rgbpwm_cli_too_few_args();
+            rgbpwm_cli_too_few_args(streamer);
             return 0;
         }
         target_wrgb = strtol(argv[2], NULL, 16);
@@ -94,7 +89,7 @@ rgbpwm_cli_cmd(int argc, char **argv)
     } else if (!strcmp(argv[1], "tx")) {
 
         if (argc < 4) {
-            rgbpwm_cli_too_few_args();
+            rgbpwm_cli_too_few_args(streamer);
             return 0;
         }
         addr = strtol(argv[2], NULL, 16);
@@ -115,10 +110,10 @@ rgbpwm_cli_cmd(int argc, char **argv)
 #if MYNEWT_VAL(NMGR_UWB_ENABLED)
         uwb_nmgr_queue_tx(nmgruwb, addr, UWB_DATA_CODE_NMGR_REQUEST, om);
 #else
-        console_printf("ERR, no NMGR-UWB enabled\n");
+        streamer_printf(streamer, "ERR, no NMGR-UWB enabled\n");
 #endif // MYNEWT_VAL(NMGR_UWB_ENABLED)
 #else 
-        console_printf("ERR, no UWB tranceiver present\n");
+        streamer_printf(streamer, "ERR, no UWB tranceiver present\n");
 #endif // MYNEWT_VAL(UWB_DEVICE_0)
 
         /* Also change local colour if this is a broadcast */
@@ -133,7 +128,7 @@ rgbpwm_cli_cmd(int argc, char **argv)
     } else if (!strcmp(argv[1], "txcfg")) {
 
         if (argc < 2) {
-            rgbpwm_cli_too_few_args();
+            rgbpwm_cli_too_few_args(streamer);
             return 0;
         }
         if (argc > 2) {
@@ -149,15 +144,15 @@ rgbpwm_cli_cmd(int argc, char **argv)
 #if MYNEWT_VAL(UWB_DEVICE_0)
             nmgr_uwb_instance_t *nmgruwb = (nmgr_uwb_instance_t*)uwb_mac_find_cb_inst_ptr(uwb_dev_idx_lookup(0), UWBEXT_NMGR_UWB);
             if (!nmgruwb) {
-                console_printf("ERR, no NMGR-UWB enabled\n");
+                streamer_printf(streamer, "ERR, no NMGR-UWB enabled\n");
             }
 #if MYNEWT_VAL(NMGR_UWB_ENABLED)
             uwb_nmgr_queue_tx(nmgruwb, addr, UWB_DATA_CODE_NMGR_REQUEST, om);
 #else
-            console_printf("ERR, no NMGR-UWB enabled\n");
+            streamer_printf(streamer, "ERR, no NMGR-UWB enabled\n");
 #endif // MYNEWT_VAL(NMGR_UWB_ENABLED)
 #else 
-            console_printf("ERR, no UWB tranceiver present\n");
+            streamer_printf(streamer, "ERR, no UWB tranceiver present\n");
 #endif // MYNEWT_VAL(UWB_DEVICE_0)
         } while (1);
     }
