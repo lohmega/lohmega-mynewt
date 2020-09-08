@@ -31,7 +31,10 @@
 
 #ifndef SGP_GIT_VERSION_H
 #define SGP_GIT_VERSION_H
-
+#if 0
 extern const char *SGP_DRV_VERSION_STR;
+#else
+#define SGP_DRV_VERSION_STR "6.0.0?"
+#endif
 
 #endif /* SGP_GIT_VERSION_H */

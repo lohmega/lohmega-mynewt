@@ -20,11 +20,16 @@
 #include "sensirion_sgp30.h"
 
 
-
+#if 1
 #define LOG_MODULE_SGP30    (30)
 #define SGP30_LOG_INFO(...)    LOG_INFO(&_log, LOG_MODULE_SGP30, __VA_ARGS__)
 #define SGP30_LOG_ERROR(...)   LOG_ERROR(&_log, LOG_MODULE_SGP30, __VA_ARGS__)
 #define SGP30_LOG_DEBUG(...)   LOG_DEBUG(&_log, LOG_MODULE_SGP30, __VA_ARGS__)
+#else
+#include "console/console.h"
+#define SGP30_LOG_ERROR(fmt, ...)   console_printf("sgp30:E:" fmt, ## __VA_ARGS__)
+#define SGP30_LOG_DEBUG(fmt, ...)   console_printf("sgp30:D:" fmt, ## __VA_ARGS__)
+#endif
 
 static struct log _log;
 
@@ -44,12 +49,11 @@ static int sgp30_sd_set_config(struct sensor *sensor, void *cfg)
     return sgp30_config(sgp30, sgp30_cfg);
 }
 
-static int
-sgp30_sd_read(struct sensor *sensor,
-                   sensor_type_t sensor_type,
-                   sensor_data_func_t cb_func,
-                   void *cb_arg,
-                   uint32_t timeout)
+static int sgp30_sd_read(struct sensor *sensor,
+                         sensor_type_t sensor_type,
+                         sensor_data_func_t cb_func,
+                         void *cb_arg,
+                         uint32_t timeout)
 {
     int err = 0;
     struct sgp30 *sgp30 = (struct sgp30 *)SENSOR_GET_DEVICE(sensor);
@@ -74,17 +78,22 @@ sgp30_sd_read(struct sensor *sensor,
     /* carbon dioxide equivalent in ppm */
     svd.svd_co2eq_is_valid = 1;
     svd.svd_co2eq = co2_eq_ppm;
-    
     // TODO? only retrive iaq_baseline every hour?
+    /** TODO!? set_iaq_baseline (if stored measurement is < 1 week old) or only set is_valid if
+     * retrived from chip and >= 1 h of "uptime"/measurement. 
+     */
     uint32_t iaq_baseline = 0;
     err = sgp30_get_iaq_baseline(&iaq_baseline);
-    if (err)
-        return err;
+    if (err) {
+        svd.svd_iaqbl_is_valid = 0;
+        svd.svd_iaqbl = 0;
+    }
+    else {
+        svd.svd_iaqbl_is_valid = 1;
+        svd.svd_iaqbl = iaq_baseline;
+    }
 
-    svd.svd_iaqbl_is_valid = 1;
-    svd.svd_iaqbl = iaq_baseline;
-
-    err = cb_func(sensor, cb_arg, &svd, SENSOR_TYPE_ACCELEROMETER);
+    err = cb_func(sensor, cb_arg, &svd, SENSOR_TYPE_VOC);
     if (err)
         return err;
 
@@ -107,7 +116,7 @@ static int sgp30_sd_get_config(struct sensor * sensor,
 static struct sensor_driver sgp30_sensor_driver = {
     .sd_read               = sgp30_sd_read,
     .sd_get_config         = sgp30_sd_get_config,
-    //.sd_set_config         = sgp30_sd_set_config,
+    .sd_set_config         = sgp30_sd_set_config,
     //.sd_set_trigger_thresh = sgp30_sd_set_trigger_thresh,
     //.sd_set_notification   = sgp30_sd_set_notification,
     //.sd_unset_notification = sgp30_sd_unset_notification,
@@ -117,12 +126,23 @@ static struct sensor_driver sgp30_sensor_driver = {
 
 int sgp30_config(struct sgp30 *sgp30, const struct sgp30_cfg *cfg)
 {
-    (void) sgp30_sd_set_config;
     int err = 0;
-
-    sensor_type_t en_mask = (SENSOR_TYPE_VOC);
-
     struct sensor *sensor = &sgp30->sensor;
+
+    /* wait for chip to boot after power reset.*/
+    static const int attempts_per_sec = 8;
+    for (int i = 0; i <= (2 * attempts_per_sec); i++) { 
+        err = sgp30_probe();
+        if (!err) 
+            break;
+        else 
+            os_time_delay(OS_TICKS_PER_SEC / attempts_per_sec);
+    }
+
+    if (err) {
+        SGP30_LOG_ERROR("sgp30_probe rc=%d\n", err);
+        return err;
+    }
 
     if (MYNEWT_VAL(SGP30_DEBUG_ENABLE)) {
 
@@ -154,20 +174,13 @@ int sgp30_config(struct sgp30 *sgp30, const struct sgp30_cfg *cfg)
         }
     }
 
-    
-    err = sgp30_probe();
-    if (err == SGP30_ERR_UNSUPPORTED_FEATURE_SET) {
-        SGP30_LOG_ERROR("needs at feature set version >= 1.0 (0x20)\n");
-        // TODO return err!?
-    }
-    else if (err) {
-        return err;
-    }
+      
    
     err = sgp30_iaq_init();
     assert(!err);
 
-    err = sensor_set_type_mask(sensor, en_mask);
+    
+    err = sensor_set_type_mask(sensor, SENSOR_TYPE_VOC);
     assert(!err);
 
     return 0;
@@ -178,21 +191,10 @@ int sgp30_init(struct os_dev *dev, void *arg)
     int err = 0;
     struct sgp30 *sgp30 = (struct sgp30 *)dev;
     struct sensor *sensor = &sgp30->sensor;
-    struct sensor_itf *itf = SENSOR_GET_ITF(sensor);
 
     err = log_register("sgp30", &_log, &log_console_handler, NULL, LOG_SYSLEVEL);
     assert(!err);
     
-    // probalby does nothing. 
-    sensirion_i2c_init();
-
-    // 
-    err = sensirion_i2c_select_bus(itf->si_num);
-    assert(!err);
-
-    // unfortenly sgp30 address is hardcoded. verify it.
-    uint8_t hardcoded_addr = sgp30_get_configured_address();
-    assert(hardcoded_addr == itf->si_addr);
 
     err = sensor_init(sensor, dev);
     assert(!err);
@@ -207,6 +209,20 @@ int sgp30_init(struct os_dev *dev, void *arg)
     err = sensor_mgr_register(sensor);
     assert(!err);
 
+    // note: itf is initalized above
+    struct sensor_itf *itf = SENSOR_GET_ITF(sensor);
+
+    // probalby does nothing. 
+    sensirion_i2c_init();
+
+    // 
+    err = sensirion_i2c_select_bus(itf->si_num);
+    assert(!err);
+
+    // unfortenly sgp30 address is hardcoded. verify it.
+
+    uint8_t hardcoded_addr = sgp30_get_configured_address();
+    assert(hardcoded_addr == itf->si_addr);
 
     return 0;
 }
