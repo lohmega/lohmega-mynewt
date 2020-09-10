@@ -32,3 +32,5 @@ pkg.deps:
     - "@apache-mynewt-core/hw/sensor"
     - "@apache-mynewt-core/sys/shell"
     
+pkg.deps.SENSOR_TYPE_VOC:
+    - "@lohmega-mynewt/lib/sensor"
