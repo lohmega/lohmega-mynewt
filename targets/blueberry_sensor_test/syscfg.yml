@@ -2,3 +2,12 @@ syscfg.vals:
     # Route console to RTT
     CONSOLE_UART: 0
     CONSOLE_RTT: 1
+
+    I2C_1: "1"
+    LSM6DSL_ONB: "0"
+    LIS2MDL_ONB: "0"
+    LPS22HB_ONB: "0"
+    HTS221_ONB: "0"
+    MPU6500_ONB: "0"
+    SI1133_ONB: "0"
+    BMX160_ONB: "1"

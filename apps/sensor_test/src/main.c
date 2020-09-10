@@ -32,6 +32,7 @@
 #include "mcu/mcu_sim.h"
 #endif
 
+#include "console/console.h"
 #include "sensor/sensor.h"
 #include "sensor/accel.h"
 #include "sensor/gyro.h"
@@ -40,181 +41,240 @@
 #include "sensor/humidity.h"
 #include "sensor/temperature.h"
 #include "sensor/light.h"
-#include "console/console.h"
 
-/* The timer callout */
+#if MYNEWT_VAL(SENSOR_TYPE_VOC)
+#include "sensor/voc.h"
+#endif
+
 static struct os_callout sensor_callout;
 
-int sensor_data_cb(struct sensor* sensor, void *arg, void *data, sensor_type_t type)
+static int sensor_data_printf(  struct sensor* sensor, 
+                                void *arg, 
+                                void *data, 
+                                sensor_type_t type)
 {
-    struct sensor_accel_data *sad;
-    struct sensor_mag_data *smd;
-    struct sensor_gyro_data *sgd;
-    struct sensor_press_data *spd;
-    struct sensor_temp_data *std;
-    struct sensor_humid_data *shd;
-    struct sensor_light_data *sld;
+    struct os_dev * dev = SENSOR_GET_DEVICE(sensor);
+
+    console_printf("%s:", (dev && dev->od_name) ? dev->od_name : "<noname>");
+    const char *sv;
+    static const char *nan = "N/A";
+
     char tmpstr[13];
+#define TO_STR(X) sensor_ftostr((float)(X), tmpstr, sizeof(tmpstr))
 
-    if (type == SENSOR_TYPE_ACCELEROMETER ||
-        type == SENSOR_TYPE_LINEAR_ACCEL  ||
-        type == SENSOR_TYPE_GRAVITY) {
+    switch (type) {
+        case SENSOR_TYPE_ACCELEROMETER:
+        case SENSOR_TYPE_LINEAR_ACCEL:
+        case SENSOR_TYPE_GRAVITY:
+        {
+            console_printf("accel: ");
+            struct sensor_accel_data *sad = data;
 
-        console_printf("accel (m/s^2) ");
+            sv = sad->sad_x_is_valid ? TO_STR(sad->sad_x) : nan;
+            console_printf("x = %s, ", sv);
 
-        sad = (struct sensor_accel_data *) data;
-        if (sad->sad_x_is_valid) {
-            console_printf("x = %s ", sensor_ftostr(sad->sad_x, tmpstr, 13));
+            sv = sad->sad_y_is_valid ? TO_STR(sad->sad_y) : nan;
+            console_printf("y = %s, ", sv);
+            
+            sv = sad->sad_z_is_valid ? TO_STR(sad->sad_z) : nan;
+            console_printf("z = %s ", sv);
+            console_printf(" (m/s^2)");
         }
-        if (sad->sad_y_is_valid) {
-            console_printf("y = %s ", sensor_ftostr(sad->sad_y, tmpstr, 13));
-        }
-        if (sad->sad_z_is_valid) {
-            console_printf("z = %s", sensor_ftostr(sad->sad_z, tmpstr, 13));
-        }
-        console_printf("\n");
-    }
+        break;
 
-    if (type == SENSOR_TYPE_MAGNETIC_FIELD) {
-        smd = (struct sensor_mag_data *) data;
-        console_printf("compass (mG)  ");
-        if (smd->smd_x_is_valid) {
-            console_printf("x = %s ", sensor_ftostr(smd->smd_x, tmpstr, 13));
-        }
-        if (smd->smd_y_is_valid) {
-            console_printf("y = %s ", sensor_ftostr(smd->smd_y, tmpstr, 13));
-        }
-        if (smd->smd_z_is_valid) {
-            console_printf("z = %s ", sensor_ftostr(smd->smd_z, tmpstr, 13));
-        }
-        console_printf("\n");
-    }
+        case SENSOR_TYPE_MAGNETIC_FIELD:
+        {
+            console_printf("compass:  ");
+            struct sensor_mag_data *smd = data;
 
-    if (type == SENSOR_TYPE_GYROSCOPE) {
-        sgd = (struct sensor_gyro_data *) data;
-        console_printf("gyro (deg/s)  ");
+            sv = smd->smd_x_is_valid ? TO_STR(smd->smd_x) : nan;
+            console_printf("x = %s, ", sv);
         
-        if (sgd->sgd_x_is_valid) {
-            console_printf("x = %s ", sensor_ftostr(sgd->sgd_x, tmpstr, 13));
+            sv = smd->smd_y_is_valid ? TO_STR(smd->smd_y) : nan;
+            console_printf("y = %s, ", sv);
+        
+            sv = smd->smd_z_is_valid ? TO_STR(smd->smd_z) : nan; 
+            console_printf("z = %s ", sv);
+            console_printf(" (mG)");
         }
-        if (sgd->sgd_y_is_valid) {
-            console_printf("y = %s ", sensor_ftostr(sgd->sgd_y, tmpstr, 13));
-        }
-        if (sgd->sgd_z_is_valid) {
-            console_printf("z = %s ", sensor_ftostr(sgd->sgd_z, tmpstr, 13));
-        }
-        console_printf("\n");
-    }
+        break;
     
-    if (type == SENSOR_TYPE_PRESSURE) {
-        spd = (struct sensor_press_data *) data;
-        if (spd->spd_press_is_valid) {
-            console_printf("pressure = %s Pa",
-                           sensor_ftostr(spd->spd_press, tmpstr, 13));
+
+        case SENSOR_TYPE_GYROSCOPE:
+        {
+            console_printf("gyro: ");
+            struct sensor_gyro_data *sgd = data;
+            
+            sv = sgd->sgd_x_is_valid ? TO_STR(sgd->sgd_x) : nan; 
+            console_printf("x = %s, ", sv);
+            
+            sv = sgd->sgd_y_is_valid ? TO_STR(sgd->sgd_y) : nan; 
+            console_printf("y = %s, ", sv);
+            
+            sv = sgd->sgd_z_is_valid ? TO_STR(sgd->sgd_z) : nan; 
+            console_printf("z = %s ", sv);
+            console_printf(" (deg/s)");
         }
-        console_printf("\n");
+        break;
+    
+        case SENSOR_TYPE_PRESSURE:
+        {
+            struct sensor_press_data *spd = data;
+
+            console_printf("pressure: ");
+            sv = spd->spd_press_is_valid ? TO_STR(spd->spd_press) : nan;
+            console_printf("P = %s (Pa)", sv);
+                           
+        }
+        break;
+
+        case SENSOR_TYPE_TEMPERATURE:
+        case SENSOR_TYPE_AMBIENT_TEMPERATURE:
+        {
+            console_printf("temperature: ");
+            struct sensor_temp_data *std = data;
+            sv = std->std_temp_is_valid ? TO_STR(std->std_temp) : nan;
+            console_printf("T = %s (deg.C)", sv);
+        }
+        break;
+    
+
+        case SENSOR_TYPE_RELATIVE_HUMIDITY:
+        {
+            struct sensor_humid_data * shd = data;
+            sv = shd->shd_humid_is_valid ? TO_STR(shd->shd_humid) : nan;
+            console_printf("relative_humidity = %s (%%rh)", sv);
+        }
+        break;
+    
+
+        case SENSOR_TYPE_LIGHT: 
+        {
+            struct sensor_light_data *sld = data;
+            console_printf("ambient_light: ");
+            
+            sv = sld->sld_full_is_valid ? TO_STR(sld->sld_full) : nan;
+            console_printf("Full = %s, ", sv); // was "%u"
+            
+            sv = (sld->sld_lux_is_valid) ? TO_STR((float)sld->sld_lux/1000) : nan;
+            console_printf("Lux = %s, ", sv);
+            
+            sv = (sld->sld_ir_is_valid) ? TO_STR((float)sld->sld_ir/1000) : nan;
+            console_printf("UV = %s ", sv);
+        }
+        break;
+    
+#if MYNEWT_VAL(SENSOR_TYPE_VOC)
+        case SENSOR_TYPE_VOC:
+        {
+            console_printf("air_VOC: ");
+            struct sensor_voc_data *svd = data;
+
+            /* Total Volatile Organic Compounds in ppb */
+            sv = svd->svd_tvoc_is_valid ? TO_STR(svd->svd_tvoc) : nan;
+            console_printf("TVOC = %s (ppb), ", sv);
+
+            /* carbon dioxide equivalent in ppm */
+            sv = svd->svd_co2eq_is_valid ? TO_STR(svd->svd_co2eq) : nan;
+            console_printf("CO2EQ = %s (ppm), ", sv);
+
+            /* IAQ baseline in ? */ 
+            sv = svd->svd_iaqbl_is_valid ? TO_STR(svd->svd_iaqbl) : nan;
+            console_printf("IAQBL = %s ", sv); 
+        }
+        break;
+#endif
+        default:
+        {
+            console_printf("unhandled_sensor: s_type = %u ", (unsigned int) type); 
+        }
+        break;
     }
 
-    if (type == SENSOR_TYPE_TEMPERATURE      ||
-        type == SENSOR_TYPE_AMBIENT_TEMPERATURE) {
-
-        std = (struct sensor_temp_data *) data;
-        if (std->std_temp_is_valid) {
-            console_printf("temperature = %s Deg C",
-                            sensor_ftostr(std->std_temp, tmpstr, 13));
-        }
-        console_printf("\n");
-    }
-
-    if (type == SENSOR_TYPE_RELATIVE_HUMIDITY) {
-        shd = (struct sensor_humid_data *) data;
-        if (shd->shd_humid_is_valid) {
-            console_printf("relative humidity = %s%%rh",
-                           sensor_ftostr(shd->shd_humid, tmpstr, 13));
-        }
-        console_printf("\n");
-    }
-
-    if (type == SENSOR_TYPE_LIGHT){
-        sld = (struct sensor_light_data *) data;
-        console_printf("ambient light ");
-        if (sld->sld_full_is_valid) {
-            console_printf("Full = %u, ", sld->sld_full);
-        }
-        if (sld->sld_lux_is_valid) {
-            console_printf("Lux = %s, ",
-                        sensor_ftostr((float)sld->sld_lux/1000, tmpstr, 13));
-        }
-        if (sld->sld_ir_is_valid) {
-            console_printf("UV = %s",
-                        sensor_ftostr((float)sld->sld_ir/1000, tmpstr, 13));
-        }
     console_printf("\n");
-    }
 
-    return (0);
+    return 0;
 }
 
-/*
- * Event callback function for timer events. 
-*/
-static void sensor_timer_ev_cb(struct os_event *ev) {
-    int rc;
-    struct sensor *s;
-    sensor_type_t sensor_types[] = {SENSOR_TYPE_ACCELEROMETER,
-                                    SENSOR_TYPE_GYROSCOPE,
-                                    SENSOR_TYPE_MAGNETIC_FIELD,
-                                    SENSOR_TYPE_PRESSURE,
-                                    SENSOR_TYPE_RELATIVE_HUMIDITY,
-                                    SENSOR_TYPE_TEMPERATURE,
-                                    SENSOR_TYPE_LIGHT,
-                                    SENSOR_TYPE_NONE};
-        
+static int sensor_data_cb(struct sensor* sensor, 
+                         void *arg, 
+                         void *data, 
+                         sensor_type_t type)
+{
+    uint32_t remaining = type;
+    for (uint32_t s_type = 1; (s_type && remaining); s_type <<= 1) { 
+        if (remaining & s_type) {
+            sensor_data_printf(sensor, arg, data, s_type);
+            remaining &= ~s_type;
+        }
+    }
+
+    return 0;
+}
+
+static void sensor_timer_ev_cb(struct os_event *ev) 
+{
     assert(ev != NULL);
-    int i=0;
-    while (sensor_types[i] != SENSOR_TYPE_NONE)
-    {
-        s = sensor_mgr_find_next_bytype(sensor_types[i], NULL);
-        if (s)
-        {
+    int rc;
+
+    for (uint32_t s_type = 1; s_type > 0; s_type <<= 1) { 
+
+        struct sensor *s = sensor_mgr_find_next_bytype(s_type, NULL);
+        if (s) {
             rc = sensor_read(s,
-                             sensor_types[i],
+                             s_type,
                              &sensor_data_cb,
                              0,
                              OS_TICKS_PER_SEC/10);
-            if (rc) console_printf("Error: failed to read sensor %i\n", rc);
+            if (rc) {
+                console_printf("Error: sensor_read rc=%i for s_type=%u\n", 
+                        rc, (unsigned int) s_type);
+            }
+        }
+    }
+
+    os_callout_reset(&sensor_callout, OS_TICKS_PER_SEC*5);
+}
+
+static void list_avaible_sensors(void) 
+{
+    console_printf("== SENSORS ==\n");
+    uint32_t s_type = 1;
+    for (int i = 0; i < (sizeof(s_type) * 8); i++) { 
+        struct sensor *s = NULL; 
+        while (1) { 
+            s = sensor_mgr_find_next_bytype(s_type, s);
+            if (!s)
+                break;
+            struct os_dev * dev = SENSOR_GET_DEVICE(s);
+            console_printf("  dev_name:%s, s_types:0x%X\n", dev->od_name, (unsigned int) s->s_types);
         }
 
-        i++;
+        s_type <<= 1;
     }
-    
-    os_callout_reset(&sensor_callout, OS_TICKS_PER_SEC*5);
+    console_printf("== END SENSORS ==\n");
 }
 
 int
 main(int argc, char **argv)
 {
-    /* Perform some extra setup if we're running in the simulator. */
 #ifdef ARCH_sim
     mcu_sim_parse_args(argc, argv);
 #endif
 
-    /* Initialize all packages. */
     sysinit();
 
+    list_avaible_sensors();
 
-    if (MYNEWT_VAL(APP_SENSOR_TEST_AUTO_DUMP_ALL)) {
-        // Initialize the callout for a timer event.
-        os_callout_init(&sensor_callout, os_eventq_dflt_get(), sensor_timer_ev_cb, NULL);
-        os_callout_reset(&sensor_callout, OS_TICKS_PER_SEC);
-    }
+    os_callout_init(&sensor_callout, os_eventq_dflt_get(), sensor_timer_ev_cb, NULL);
+    os_callout_reset(&sensor_callout, OS_TICKS_PER_SEC);
 
     os_time_delay(OS_TICKS_PER_SEC*5);
     
-    /* As the last thing, process events from default event queue. */
     while (1) {
         os_eventq_run(os_eventq_dflt_get());
     }
 
     return 0;
 }
+

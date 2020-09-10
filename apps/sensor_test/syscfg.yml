@@ -19,9 +19,9 @@
 
 # Settings this app defines.
 syscfg.defs:
-    APP_SENSOR_TEST_AUTO_DUMP_ALL: 
-        description: 'auto iterate all sensors and print to console'
-        value: 1
+    SENSOR_TYPE_VOC:
+        description: 'Sensor type VOC not in mynewt-core. '
+        value: 0
 
 # Settings this app overrides.
 syscfg.vals:
@@ -29,17 +29,9 @@ syscfg.vals:
     CONSOLE_UART: 0
     CONSOLE_RTT: 1
     SHELL_TASK: "1"
-    APP_SENSOR_TEST_AUTO_DUMP_ALL: 1
-    # Include names for statistics.
+
     STATS_NAMES: 1
 
     SENSOR_CLI: 1
 
-    I2C_1: "1"
-    LSM6DSL_ONB: "0"
-    LIS2MDL_ONB: "0"
-    LPS22HB_ONB: "0"
-    HTS221_ONB: "0"
-    MPU6500_ONB: "0"
-    SI1133_ONB: "0"
-    BMX160_ONB: "1"
+    # enable I2c, SPI and sensors as needed in targets/<x>/syscfg.yml, not here
