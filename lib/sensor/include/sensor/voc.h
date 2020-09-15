@@ -35,7 +35,7 @@ struct sensor_voc_data {
     /* carbon dioxide equivalent in ppm */
     float svd_co2eq;
     /* Indoor Air Quality (IAQ) Baseline */
-    float svd_iaqbl;
+    uint32_t svd_iaqbl;
     /* Validity */
     uint8_t svd_tvoc_is_valid:1;
     uint8_t svd_co2eq_is_valid:1;

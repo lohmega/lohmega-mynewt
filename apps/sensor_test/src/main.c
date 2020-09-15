@@ -51,14 +51,20 @@ static struct os_callout sensor_callout;
 static int sensor_data_printf(struct sensor *sensor, void *arg, void *data,
                               sensor_type_t type)
 {
-    struct os_dev *dev = SENSOR_GET_DEVICE(sensor);
 
+    struct os_dev *dev = SENSOR_GET_DEVICE(sensor);
     console_printf("%s:", (dev && dev->od_name) ? dev->od_name : "<noname>");
     const char *sv;
     static const char *nan = "N/A";
 
     char tmpstr[13];
-#define TO_STR(X) sensor_ftostr((float)(X), tmpstr, sizeof(tmpstr))
+
+#define FTOSTR(X) sensor_ftostr((float)(X), tmpstr, sizeof(tmpstr))
+#define UTOSTR(X) ({ \
+            snprintf(tmpstr, sizeof(tmpstr), "0x%X", (unsigned int) (X)); \
+            tmpstr; \
+        })
+
 
     switch (type) {
         case SENSOR_TYPE_ACCELEROMETER:
@@ -67,13 +73,13 @@ static int sensor_data_printf(struct sensor *sensor, void *arg, void *data,
             console_printf("accel: ");
             struct sensor_accel_data *sad = data;
 
-            sv = sad->sad_x_is_valid ? TO_STR(sad->sad_x) : nan;
+            sv = sad->sad_x_is_valid ? FTOSTR(sad->sad_x) : nan;
             console_printf("x = %s, ", sv);
 
-            sv = sad->sad_y_is_valid ? TO_STR(sad->sad_y) : nan;
+            sv = sad->sad_y_is_valid ? FTOSTR(sad->sad_y) : nan;
             console_printf("y = %s, ", sv);
 
-            sv = sad->sad_z_is_valid ? TO_STR(sad->sad_z) : nan;
+            sv = sad->sad_z_is_valid ? FTOSTR(sad->sad_z) : nan;
             console_printf("z = %s ", sv);
             console_printf(" (m/s^2)");
         } break;
@@ -82,13 +88,13 @@ static int sensor_data_printf(struct sensor *sensor, void *arg, void *data,
             console_printf("compass:  ");
             struct sensor_mag_data *smd = data;
 
-            sv = smd->smd_x_is_valid ? TO_STR(smd->smd_x) : nan;
+            sv = smd->smd_x_is_valid ? FTOSTR(smd->smd_x) : nan;
             console_printf("x = %s, ", sv);
 
-            sv = smd->smd_y_is_valid ? TO_STR(smd->smd_y) : nan;
+            sv = smd->smd_y_is_valid ? FTOSTR(smd->smd_y) : nan;
             console_printf("y = %s, ", sv);
 
-            sv = smd->smd_z_is_valid ? TO_STR(smd->smd_z) : nan;
+            sv = smd->smd_z_is_valid ? FTOSTR(smd->smd_z) : nan;
             console_printf("z = %s ", sv);
             console_printf(" (mG)");
         } break;
@@ -97,13 +103,13 @@ static int sensor_data_printf(struct sensor *sensor, void *arg, void *data,
             console_printf("gyro: ");
             struct sensor_gyro_data *sgd = data;
 
-            sv = sgd->sgd_x_is_valid ? TO_STR(sgd->sgd_x) : nan;
+            sv = sgd->sgd_x_is_valid ? FTOSTR(sgd->sgd_x) : nan;
             console_printf("x = %s, ", sv);
 
-            sv = sgd->sgd_y_is_valid ? TO_STR(sgd->sgd_y) : nan;
+            sv = sgd->sgd_y_is_valid ? FTOSTR(sgd->sgd_y) : nan;
             console_printf("y = %s, ", sv);
 
-            sv = sgd->sgd_z_is_valid ? TO_STR(sgd->sgd_z) : nan;
+            sv = sgd->sgd_z_is_valid ? FTOSTR(sgd->sgd_z) : nan;
             console_printf("z = %s ", sv);
             console_printf(" (deg/s)");
         } break;
@@ -112,7 +118,7 @@ static int sensor_data_printf(struct sensor *sensor, void *arg, void *data,
             struct sensor_press_data *spd = data;
 
             console_printf("pressure: ");
-            sv = spd->spd_press_is_valid ? TO_STR(spd->spd_press) : nan;
+            sv = spd->spd_press_is_valid ? FTOSTR(spd->spd_press) : nan;
             console_printf("P = %s (Pa)", sv);
 
         } break;
@@ -121,13 +127,13 @@ static int sensor_data_printf(struct sensor *sensor, void *arg, void *data,
         case SENSOR_TYPE_AMBIENT_TEMPERATURE: {
             console_printf("temperature: ");
             struct sensor_temp_data *std = data;
-            sv = std->std_temp_is_valid ? TO_STR(std->std_temp) : nan;
+            sv = std->std_temp_is_valid ? FTOSTR(std->std_temp) : nan;
             console_printf("T = %s (deg.C)", sv);
         } break;
 
         case SENSOR_TYPE_RELATIVE_HUMIDITY: {
             struct sensor_humid_data *shd = data;
-            sv = shd->shd_humid_is_valid ? TO_STR(shd->shd_humid) : nan;
+            sv = shd->shd_humid_is_valid ? FTOSTR(shd->shd_humid) : nan;
             console_printf("relative_humidity = %s (%%rh)", sv);
         } break;
 
@@ -135,14 +141,14 @@ static int sensor_data_printf(struct sensor *sensor, void *arg, void *data,
             struct sensor_light_data *sld = data;
             console_printf("ambient_light: ");
 
-            sv = sld->sld_full_is_valid ? TO_STR(sld->sld_full) : nan;
-            console_printf("Full = %s, ", sv); // was "%u"
+            sv = sld->sld_full_is_valid ? UTOSTR(sld->sld_full) : nan;
+            console_printf("Full = %s, ", sv);
 
-            sv = (sld->sld_lux_is_valid) ? TO_STR((float)sld->sld_lux / 1000)
+            sv = (sld->sld_lux_is_valid) ? FTOSTR((float)sld->sld_lux / 1000)
                                          : nan;
             console_printf("Lux = %s, ", sv);
 
-            sv = (sld->sld_ir_is_valid) ? TO_STR((float)sld->sld_ir / 1000)
+            sv = (sld->sld_ir_is_valid) ? FTOSTR((float)sld->sld_ir / 1000)
                                         : nan;
             console_printf("UV = %s ", sv);
         } break;
@@ -153,19 +159,21 @@ static int sensor_data_printf(struct sensor *sensor, void *arg, void *data,
             struct sensor_voc_data *svd = data;
 
             /* Total Volatile Organic Compounds in ppb */
-            sv = svd->svd_tvoc_is_valid ? TO_STR(svd->svd_tvoc) : nan;
+            sv = svd->svd_tvoc_is_valid ? FTOSTR(svd->svd_tvoc) : nan;
             console_printf("TVOC = %s (ppb), ", sv);
 
             /* carbon dioxide equivalent in ppm */
-            sv = svd->svd_co2eq_is_valid ? TO_STR(svd->svd_co2eq) : nan;
+            sv = svd->svd_co2eq_is_valid ? FTOSTR(svd->svd_co2eq) : nan;
             console_printf("CO2EQ = %s (ppm), ", sv);
 
             /* IAQ baseline in ? */
-            sv = svd->svd_iaqbl_is_valid ? TO_STR(svd->svd_iaqbl) : nan;
+            sv = svd->svd_iaqbl_is_valid ? UTOSTR(svd->svd_iaqbl) : nan;
             console_printf("IAQBL = %s ", sv);
         } break;
 #endif
         default: {
+            uint32_t v = type;
+            assert(v && !(v & (v - 1))); // assert single bit set
             console_printf("unhandled_sensor: s_type = %u ",
                            (unsigned int)type);
         } break;
