@@ -32,5 +32,4 @@ pkg.deps:
 
 pkg.req_apis:
     - log
-    - stats
 

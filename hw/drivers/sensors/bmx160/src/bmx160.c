@@ -26,12 +26,9 @@
 #include "sensor/accel.h"
 #include "sensor/gyro.h"
 #include "sensor/mag.h"
-
 #include "log/log.h"
-#include "stats/stats.h"
 
 #include "bmx160/bmx160.h"
-
 #include "bmx160_defs.h"
 #include "bmm150.h"
 
@@ -49,17 +46,11 @@ struct bmx160_priv {
 #define ARRAY_LEN(array) (sizeof(array) / sizeof(array[0]))
 #endif
 
-#define BMX160_SENSOR_TYPES_MSK (\
-        SENSOR_TYPE_ACCELEROMETER | \
-        SENSOR_TYPE_TEMPERATURE | \
-        SENSOR_TYPE_GYROSCOPE | \
-        SENSOR_TYPE_MAGNETIC_FIELD)
-
 
 #define BMX160_ITF_LOCK_TIMEOUT (OS_TIMEOUT_NEVER)
-#define BMX160_RW_TIMEOUT (OS_TICKS_PER_SEC / 10)
-#define BMX160_DEBUG_ENABLE (1)  // TODO disable this
-#define BMX160_RAW_VALUES (0)  // TODO disable this
+#define BMX160_RW_TIMEOUT       (OS_TICKS_PER_SEC / 10)
+#define BMX160_DEBUG_ENABLE     MYNEWT_VAL(BMX160_DEBUG_ENABLE)
+#define BMX160_RAW_VALUES       MYNEWT_VAL(BMX160_RAW_VALUES)
 
 
 

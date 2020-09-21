@@ -1,0 +1,8 @@
+syscfg.defs:
+    BMX160_DEBUG_ENABLE:
+        description: 'Extra debug info and checks'
+        value: 0
+
+    BMX160_RAW_VALUES:
+        description: 'Sensor values not compensated/converted. i.e. raw'
+        value: 0
