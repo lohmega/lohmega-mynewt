@@ -46,6 +46,10 @@
 #include "sensor/voc.h"
 #endif
 
+#if MYNEWT_VAL(SENSOR_TYPE_VOLTAGE)
+#include "sensor/voltage.h"
+#endif
+
 static struct os_callout sensor_callout;
 
 static int sensor_data_printf(struct sensor *sensor, void *arg, void *data,
@@ -171,6 +175,16 @@ static int sensor_data_printf(struct sensor *sensor, void *arg, void *data,
             console_printf("IAQBL = %s ", sv);
         } break;
 #endif
+
+#if MYNEWT_VAL(SENSOR_TYPE_VOLTAGE)
+        case SENSOR_TYPE_VOLTAGE: {
+            console_printf("volt: ");
+            struct sensor_voltage_data *svd = data;
+            sv = svd->svd_voltage_is_valid ? FTOSTR(svd->svd_voltage) : nan;
+            console_printf("U = %s (V), ", sv);
+        } break;
+#endif
+
         default: {
             uint32_t v = type;
             assert(v && !(v & (v - 1))); // assert single bit set
@@ -203,17 +217,20 @@ static void sensor_timer_ev_cb(struct os_event *ev)
     assert(ev != NULL);
     int rc;
 
-    for (uint32_t s_type = 1; s_type > 0; s_type <<= 1) {
-
-        struct sensor *s = sensor_mgr_find_next_bytype(s_type, NULL);
-        if (s) {
-            rc = sensor_read(s, s_type, &sensor_data_cb, 0,
-                             OS_TICKS_PER_SEC / 10);
-            if (rc) {
-                console_printf("Error: sensor_read rc=%i for s_type=%u\n", rc,
-                               (unsigned int)s_type);
-            }
+    struct sensor *s = NULL;
+    while (1) {
+        s = sensor_mgr_find_next_bytype(SENSOR_TYPE_ALL, s);
+        if (!s) {
+            break;
         }
+ 
+        rc = sensor_read(s, s->s_types, &sensor_data_cb, 0,
+                         OS_TICKS_PER_SEC / 10);
+        if (rc) {
+            console_printf("Error: sensor_read rc=%i for s_type=%u\n", rc,
+                           (unsigned int)s->s_types);
+        }
+
     }
 
     os_callout_reset(&sensor_callout, OS_TICKS_PER_SEC * 5);
@@ -222,20 +239,22 @@ static void sensor_timer_ev_cb(struct os_event *ev)
 static void list_avaible_sensors(void)
 {
     console_printf("== SENSORS ==\n");
-    uint32_t s_type = 1;
-    for (int i = 0; i < (sizeof(s_type) * 8); i++) {
-        struct sensor *s = NULL;
-        while (1) {
-            s = sensor_mgr_find_next_bytype(s_type, s);
-            if (!s)
-                break;
-            struct os_dev *dev = SENSOR_GET_DEVICE(s);
-            console_printf("  dev_name:%s, s_types:0x%X\n", dev->od_name,
-                           (unsigned int)s->s_types);
+
+    sensor_mgr_lock();
+    struct sensor *s = NULL;
+    while (1) {
+        s = sensor_mgr_find_next_bytype(SENSOR_TYPE_ALL, s);
+        if (!s) {
+            break;
         }
 
-        s_type <<= 1;
+        struct os_dev *dev = SENSOR_GET_DEVICE(s);
+        console_printf("  dev_name:%s, s_types:0x%X\n", dev->od_name,
+                       (unsigned int)s->s_types);
     }
+
+    sensor_mgr_unlock();
+
     console_printf("== END SENSORS ==\n");
 }
 
