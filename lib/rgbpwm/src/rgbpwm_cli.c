@@ -36,8 +36,8 @@
 
 #if MYNEWT_VAL(UWB_DEVICE_0)
 #include <uwb/uwb.h>
-#if MYNEWT_VAL(NMGR_UWB_ENABLED)
-#include <nmgr_uwb/nmgr_uwb.h> 
+#if MYNEWT_VAL(SMP_UWB_ENABLED)
+#include <smp_uwb/smp_uwb.h>
 #endif
 #endif
 
@@ -54,7 +54,7 @@ const struct shell_param cmd_rgbpwm_param[] = {
 };
 
 const struct shell_cmd_help cmd_rgbpwm_help = {
-	"rgbpwm cli", "Manual control of pwm intenisies", cmd_rgbpwm_param
+    "rgbpwm cli", "Manual control of pwm intenisies", cmd_rgbpwm_param
 };
 #endif
 
@@ -104,21 +104,21 @@ rgbpwm_cli_cmd(const struct shell_cmd *cmd, int argc, char **argv, struct stream
         if (!om) return 0;
         int start_num_free = os_msys_num_free();
 #if MYNEWT_VAL(UWB_DEVICE_0)
-        nmgr_uwb_instance_t *nmgruwb = (nmgr_uwb_instance_t*)uwb_mac_find_cb_inst_ptr(uwb_dev_idx_lookup(0), UWBEXT_NMGR_UWB);
+        smp_uwb_instance_t *smpuwb = (smp_uwb_instance_t*)uwb_mac_find_cb_inst_ptr(uwb_dev_idx_lookup(0), UWBEXT_SMP_UWB);
 
-        if (!nmgruwb) return 0;
-#if MYNEWT_VAL(NMGR_UWB_ENABLED)
-        uwb_nmgr_queue_tx(nmgruwb, addr, UWB_DATA_CODE_NMGR_REQUEST, om);
+        if (!smpuwb) return 0;
+#if MYNEWT_VAL(SMP_UWB_ENABLED)
+        uwb_smp_queue_tx(smpuwb, addr, UWB_DATA_CODE_SMP_REQUEST, om);
 #else
-        streamer_printf(streamer, "ERR, no NMGR-UWB enabled\n");
-#endif // MYNEWT_VAL(NMGR_UWB_ENABLED)
-#else 
+        streamer_printf(streamer, "ERR, no SMP-UWB enabled\n");
+#endif // MYNEWT_VAL(SMP_UWB_ENABLED)
+#else
         streamer_printf(streamer, "ERR, no UWB tranceiver present\n");
 #endif // MYNEWT_VAL(UWB_DEVICE_0)
 
         /* Also change local colour if this is a broadcast */
         if (addr == 0xffff) {
-            /* Wait until the package has been sent by uwbnmgr */
+            /* Wait until the package has been sent by uwbsmp */
             int timeout=OS_TICKS_PER_SEC;
             while (os_msys_num_free() == start_num_free && --timeout>0) {
                 os_time_delay(1);
@@ -142,16 +142,16 @@ rgbpwm_cli_cmd(const struct shell_cmd *cmd, int argc, char **argv, struct stream
                 break;
             }
 #if MYNEWT_VAL(UWB_DEVICE_0)
-            nmgr_uwb_instance_t *nmgruwb = (nmgr_uwb_instance_t*)uwb_mac_find_cb_inst_ptr(uwb_dev_idx_lookup(0), UWBEXT_NMGR_UWB);
-            if (!nmgruwb) {
-                streamer_printf(streamer, "ERR, no NMGR-UWB enabled\n");
+            smp_uwb_instance_t *smpuwb = (smp_uwb_instance_t*)uwb_mac_find_cb_inst_ptr(uwb_dev_idx_lookup(0), UWBEXT_SMP_UWB);
+            if (!smpuwb) {
+                streamer_printf(streamer, "ERR, no SMP-UWB enabled\n");
             }
-#if MYNEWT_VAL(NMGR_UWB_ENABLED)
-            uwb_nmgr_queue_tx(nmgruwb, addr, UWB_DATA_CODE_NMGR_REQUEST, om);
+#if MYNEWT_VAL(SMP_UWB_ENABLED)
+            uwb_smp_queue_tx(smpuwb, addr, UWB_DATA_CODE_SMP_REQUEST, om);
 #else
-            streamer_printf(streamer, "ERR, no NMGR-UWB enabled\n");
-#endif // MYNEWT_VAL(NMGR_UWB_ENABLED)
-#else 
+            streamer_printf(streamer, "ERR, no SMP-UWB enabled\n");
+#endif // MYNEWT_VAL(SMP_UWB_ENABLED)
+#else
             streamer_printf(streamer, "ERR, no UWB tranceiver present\n");
 #endif // MYNEWT_VAL(UWB_DEVICE_0)
         } while (1);

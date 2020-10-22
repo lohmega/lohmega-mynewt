@@ -1,5 +1,5 @@
-#ifndef _RGBPWM_NMGR_H_
-#define _RGBPWM_NMGR_H_
+#ifndef _RGBPWM_SMP_H_
+#define _RGBPWM_SMP_H_
 
 #define MGMT_GROUP_ID_RGBPWM   (0x123)
 
@@ -7,10 +7,10 @@
 extern "C" {
 #endif
 
-void rgbpwm_nmgr_init(void);
+void rgbpwm_smp_init(void);
 
 #ifdef __cplusplus
 }
 #endif
-    
+
 #endif

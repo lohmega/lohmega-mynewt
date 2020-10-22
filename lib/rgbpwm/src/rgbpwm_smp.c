@@ -37,32 +37,32 @@
 #include <hal/hal_system.h>
 
 #include "base64/hex.h"
-#include "rgbpwm_nmgr_priv.h"
+#include "rgbpwm_smp_priv.h"
 #include <rgbpwm/rgbpwm.h>
 
-static int rgbpwm_set(struct mgmt_cbuf *cb);
+static int rgbpwm_set(struct mgmt_ctxt *cb);
 
-#define RGBPWM_NMGR_ID_SET    0
-#define RGBPWM_NMGR_ID_CFGSET 1
+#define RGBPWM_SMP_ID_SET    0
+#define RGBPWM_SMP_ID_CFGSET 1
 
-static const struct mgmt_handler pwmrgb_nmgr_handlers[] = {
-    [RGBPWM_NMGR_ID_SET] = {
+static const struct mgmt_handler pwmrgb_smp_handlers[] = {
+    [RGBPWM_SMP_ID_SET] = {
         .mh_read = NULL,
         .mh_write = rgbpwm_set
     },
 };
 
 #define PWMRGB_HANDLER_CNT                                                \
-    sizeof(pwmrgb_nmgr_handlers) / sizeof(pwmrgb_nmgr_handlers[0])
+    sizeof(pwmrgb_smp_handlers) / sizeof(pwmrgb_smp_handlers[0])
 
-static struct mgmt_group pwmrgb_nmgr_group = {
-    .mg_handlers = (struct mgmt_handler *)pwmrgb_nmgr_handlers,
+static struct mgmt_group pwmrgb_smp_group = {
+    .mg_handlers = (struct mgmt_handler *)pwmrgb_smp_handlers,
     .mg_handlers_count = PWMRGB_HANDLER_CNT,
     .mg_group_id = MGMT_GROUP_ID_RGBPWM,
 };
 
 static int
-rgbpwm_set(struct mgmt_cbuf *cb)
+rgbpwm_set(struct mgmt_ctxt *cb)
 {
     uint64_t wrgb = 0xFFFFFFFFFFFFFFFFULL;
     uint64_t delay_ms = UINT_MAX;
@@ -84,7 +84,7 @@ rgbpwm_set(struct mgmt_cbuf *cb)
     };
     int rc;
     CborError g_err = CborNoError;
-        
+
     rc = cbor_read_object(&cb->it, off_attr);
     if (rc) {
         return MGMT_ERR_EINVAL;
@@ -115,7 +115,7 @@ rgbpwm_set(struct mgmt_cbuf *cb)
  * @brief creates a mbuf packet to set the colour remotely.
  *
  * input parameters:
- * @param colour - The colour (0x00WWRRGGBBUL), if set to 
+ * @param colour - The colour (0x00WWRRGGBBUL), if set to
  * ULONG_MAX a random colour is used
  * @param delay - time in ms to complete transition
  *
@@ -127,25 +127,25 @@ rgbpwm_get_txcolour_mbuf(uint64_t colour, uint32_t delay)
     CborEncoder payload_enc;
     struct mgmt_cbuf n_b;
     struct cbor_mbuf_writer writer;
-    struct nmgr_hdr *hdr;
+    struct mgmt_hdr *hdr;
     struct os_mbuf *rsp;
-    
+
     rsp = os_msys_get_pkthdr(0, 0);
 
     if (!rsp) {
         return 0;
     }
 
-    hdr = (struct nmgr_hdr *) os_mbuf_extend(rsp, sizeof(struct nmgr_hdr));
+    hdr = (struct mgmt_hdr *) os_mbuf_extend(rsp, sizeof(struct mgmt_hdr));
     if (!hdr) {
         goto exit_err;
     }
     hdr->nh_len = 0;
     hdr->nh_flags = 0;
-    hdr->nh_op = NMGR_OP_WRITE;
+    hdr->nh_op = MGMT_OP_WRITE;
     hdr->nh_group = htons(MGMT_GROUP_ID_RGBPWM);
     hdr->nh_seq = 0;
-    hdr->nh_id = RGBPWM_NMGR_ID_SET;
+    hdr->nh_id = RGBPWM_SMP_ID_SET;
 
     cbor_mbuf_writer_init(&writer, rsp);
     cbor_encoder_init(&n_b.encoder, &writer.enc, 0);
@@ -163,7 +163,7 @@ rgbpwm_get_txcolour_mbuf(uint64_t colour, uint32_t delay)
     }
     g_err |= cbor_encode_text_stringz(&payload_enc, "delay");
     g_err |= cbor_encode_uint(&payload_enc, delay);
-    
+
     rc = cbor_encoder_close_container(&cb->encoder, &payload_enc);
     if (rc != 0) {
         goto exit_err;
@@ -194,7 +194,7 @@ rgbpwm_get_txcfg_mbuf(int cfg_index)
     CborEncoder payload_enc;
     struct mgmt_cbuf n_b;
     struct cbor_mbuf_writer writer;
-    struct nmgr_hdr *hdr;
+    struct mgmt_hdr *hdr;
     struct os_mbuf *rsp;
     int num_cfgs = 7;
     char *cfg_ptrs[] = {"pwm_freq", "mode", "local_delay", "colours0","colours1","colours2","colours3"};
@@ -208,13 +208,13 @@ rgbpwm_get_txcfg_mbuf(int cfg_index)
         return 0;
     }
 
-    hdr = (struct nmgr_hdr *) os_mbuf_extend(rsp, sizeof(struct nmgr_hdr));
+    hdr = (struct mgmt_hdr *) os_mbuf_extend(rsp, sizeof(struct mgmt_hdr));
     if (!hdr) {
         goto exit_err;
     }
     hdr->nh_len = 0;
     hdr->nh_flags = 0;
-    hdr->nh_op = NMGR_OP_WRITE;
+    hdr->nh_op = MGMT_OP_WRITE;
     hdr->nh_group = htons(MGMT_GROUP_ID_CONFIG);
     hdr->nh_seq = 0;
     hdr->nh_id = CONF_NMGR_OP;
@@ -254,13 +254,10 @@ exit_err:
 
 
 void
-rgbpwm_nmgr_init(void)
+rgbpwm_smp_init(void)
 {
-    int rc;
-
     /* Ensure this function only gets called by sysinit. */
     SYSINIT_ASSERT_ACTIVE();
 
-    rc = mgmt_group_register(&pwmrgb_nmgr_group);
-    SYSINIT_PANIC_ASSERT(rc == 0);
+    mgmt_register_group(&pwmrgb_smp_group);
 }

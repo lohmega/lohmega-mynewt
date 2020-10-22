@@ -12,13 +12,13 @@
 #include <log/log.h>
 #include <config/config.h>
 #include "rgbpwm/rgbpwm.h"
-#include "rgbpwm_nmgr_priv.h"
+#include "rgbpwm_smp_priv.h"
 
 #if MYNEWT_VAL(UWB_DEVICE_0)
 #include <uwb/uwb.h>
 #include <dw1000/dw1000_hal.h>
-#if MYNEWT_VAL(NMGR_UWB_ENABLED)
-#include <nmgr_uwb/nmgr_uwb.h>
+#if MYNEWT_VAL(SMP_UWB_ENABLED)
+#include <smp_uwb/smp_uwb.h>
 #endif
 #endif
 
@@ -365,16 +365,16 @@ master_timer_ev_cb(struct os_event *ev)
     int start_num_free = os_msys_num_free();
 
 #if MYNEWT_VAL(UWB_DEVICE_0)
-    nmgr_uwb_instance_t *nmgruwb = (nmgr_uwb_instance_t*)uwb_mac_find_cb_inst_ptr(uwb_dev_idx_lookup(0), UWBEXT_NMGR_UWB);
-    if (!nmgruwb) {
+    smp_uwb_instance_t *smpuwb = (smp_uwb_instance_t*)uwb_mac_find_cb_inst_ptr(uwb_dev_idx_lookup(0), UWBEXT_SMP_UWB);
+    if (!smpuwb) {
         return;
     }
 
-#if MYNEWT_VAL(NMGR_UWB_ENABLED)
-    uwb_nmgr_queue_tx(nmgruwb, 0xffff, UWB_DATA_CODE_NMGR_REQUEST, om);
+#if MYNEWT_VAL(SMP_UWB_ENABLED)
+    uwb_smp_queue_tx(smpuwb, 0xffff, UWB_DATA_CODE_SMP_REQUEST, om);
 #else
-    console_printf("ERR, no NMGR-UWB enabled\n");
-#endif // MYNEWT_VAL(NMGR_UWB_ENABLED)
+    console_printf("ERR, no SMP-UWB enabled\n");
+#endif // MYNEWT_VAL(SMP_UWB_ENABLED)
 #else
     console_printf("ERR, no UWB tranceiver present\n");
 #endif // MYNEWT_VAL(UWB_DEVICE_0)
@@ -611,8 +611,8 @@ rgbpwm_pkg_init(void)
 #if MYNEWT_VAL(RGBPWM_CLI)
     rgbpwm_cli_register();
 #endif
-#if MYNEWT_VAL(RGBPWM_NMGR)
-    rgbpwm_nmgr_init();
+#if MYNEWT_VAL(RGBPWM_SMP)
+    rgbpwm_smp_init();
 #endif
     return 0;
 }
