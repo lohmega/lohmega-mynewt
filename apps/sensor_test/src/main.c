@@ -223,11 +223,11 @@ static void sensor_timer_ev_cb(struct os_event *ev)
         if (!s) {
             break;
         }
- 
+
         rc = sensor_read(s, s->s_types, &sensor_data_cb, 0,
                          OS_TICKS_PER_SEC / 10);
         if (rc) {
-            console_printf("Error: sensor_read rc=%i for s_type=%u\n", rc,
+            console_printf("Error: sensor_read rc=%i for s_type=0x%x\n", rc,
                            (unsigned int)s->s_types);
         }
 
