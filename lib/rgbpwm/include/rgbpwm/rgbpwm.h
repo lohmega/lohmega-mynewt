@@ -1,6 +1,7 @@
 #ifndef __RGBPWM_H
 #define __RGBPWM_H
 
+#include <os/os_callout.h>
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -18,6 +19,7 @@ extern "C" {
 
 struct rgbpwm_cfg {
     char* pwm_device_str;
+    uint8_t num_channels;
     int red_pin;
     int green_pin;
     int blue_pin;
@@ -28,11 +30,14 @@ struct rgbpwm_cfg {
     uint8_t white_inverted:1;
 };
 
+int rgbpwm_set_freq(int freq);
 int rgbpwm_init(const struct rgbpwm_cfg *cfg);
 
 int rgbpwm_set_target(float *value, float *delay, int len);
 void rgbpwm_set_target32(uint32_t wrgb, int32_t delay_ms);
+void rgbpwm_set_target32_wco(uint32_t wrgb, int32_t delay_ms, struct os_callout *co);
 
+/**/
 void rgbpwm_set_random(int32_t delay_ms);
 void rgbpwm_delay_local_change_timer(int ms);
 void rgbpwm_stop_local_change_timer();

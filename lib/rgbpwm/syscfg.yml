@@ -21,12 +21,15 @@ syscfg.defs:
     RGBPWM_DEBUG:
         description: 'Debug mode'
         value: 0
+    RGBPWM_CTRL:
+        description: 'Glass installation controls'
+        value: 0
     RGBPWM_CLI:
         description: 'Command line tools'
         value: 1
-    RGBPWM_NMGR:
-        description: 'Newtmgr interface'
-        value: 1
+    RGBPWM_SMP:
+        description: 'SMP interface'
+        value: 0
     RGBPWM_MAX_NUM_APPROVED_COLOURS:
         description: 'Maximum number of storable approved colours'
         value: 32

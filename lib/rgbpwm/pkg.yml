@@ -6,7 +6,7 @@
 # to you under the Apache License, Version 2.0 (the
 # "License"); you may not use this file except in compliance
 # with the License.  You may obtain a copy of the License at
-# 
+#
 #  http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing,
@@ -19,19 +19,24 @@
 
 pkg.name: "lib/rgbpwm"
 pkg.description: "RGB PWM"
-pkg.author: "Niklas Casaril <niklas@loligoelectronics.com"
-pkg.homepage: "http://loligoelectronics.com/"
+pkg.author: "Niklas Casaril <niklas@lohmega.com"
+pkg.homepage: "http://lohmega.com/"
 pkg.keywords:
 
 pkg.deps:
     - "@apache-mynewt-core/kernel/os"
     - "@apache-mynewt-core/sys/id"
-    - "@apache-mynewt-core/sys/shell"
     - "@apache-mynewt-core/sys/config"
-    - "@apache-mynewt-core/sys/console/full"
     - "@apache-mynewt-core/mgmt/smp"
     - "@apache-mynewt-core/hw/drivers/pwm"
     - "@apache-mynewt-core/util/easing"
 
+pkg.deps.RGBPWM_CLI:
+    - "@apache-mynewt-core/sys/shell"
+    - "@apache-mynewt-core/sys/console/full"
+
 pkg.init:
-    rgbpwm_pkg_init:    500
+    rgbpwm_pkg_init:      500
+
+pkg.init.RGBPWM_CTRL:
+    rgbpwm_ctrl_pkg_init: 501

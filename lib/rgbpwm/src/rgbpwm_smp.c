@@ -22,6 +22,8 @@
 #include <string.h>
 
 #include "os/mynewt.h"
+
+#if MYNEWT_VAL(RGBPWM_SMP)
 #include "hal/hal_bsp.h"
 #include "flash_map/flash_map.h"
 #include "mgmt/mgmt.h"
@@ -261,3 +263,4 @@ rgbpwm_smp_init(void)
 
     mgmt_register_group(&pwmrgb_smp_group);
 }
+#endif

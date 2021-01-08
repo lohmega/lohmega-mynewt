@@ -70,7 +70,6 @@ rgbpwm_cli_too_few_args(struct streamer *streamer)
 static int
 rgbpwm_cli_cmd(const struct shell_cmd *cmd, int argc, char **argv, struct streamer *streamer)
 {
-    uint16_t addr=0xffff;
     uint64_t target_wrgb = RGBPWM_RANDOM;
     uint32_t delay_ms = 1;
 
@@ -85,8 +84,9 @@ rgbpwm_cli_cmd(const struct shell_cmd *cmd, int argc, char **argv, struct stream
             delay_ms = strtol(argv[3], NULL, 0);
         }
         rgbpwm_set_target32(target_wrgb, delay_ms);
-
+#if MYNEWT_VAL(RGBPWM_CTRL)
     } else if (!strcmp(argv[1], "tx")) {
+        uint16_t addr=0xffff;
 
         if (argc < 4) {
             rgbpwm_cli_too_few_args(streamer);
@@ -100,21 +100,15 @@ rgbpwm_cli_cmd(const struct shell_cmd *cmd, int argc, char **argv, struct stream
         if (argc > 4) {
             delay_ms = strtol(argv[4], NULL, 0);
         }
+#if MYNEWT_VAL(UWB_DEVICE_0) && MYNEWT_VAL(SMP_UWB_ENABLED) && MYNEWT_VAL(RGBPWM_SMP)
         struct os_mbuf *om = rgbpwm_get_txcolour_mbuf(target_wrgb, delay_ms);
         if (!om) return 0;
-        int start_num_free = os_msys_num_free();
-#if MYNEWT_VAL(UWB_DEVICE_0)
         smp_uwb_instance_t *smpuwb = (smp_uwb_instance_t*)uwb_mac_find_cb_inst_ptr(uwb_dev_idx_lookup(0), UWBEXT_SMP_UWB);
 
         if (!smpuwb) return 0;
-#if MYNEWT_VAL(SMP_UWB_ENABLED)
         uwb_smp_queue_tx(smpuwb, addr, UWB_DATA_CODE_SMP_REQUEST, om);
-#else
-        streamer_printf(streamer, "ERR, no SMP-UWB enabled\n");
-#endif // MYNEWT_VAL(SMP_UWB_ENABLED)
-#else
-        streamer_printf(streamer, "ERR, no UWB tranceiver present\n");
-#endif // MYNEWT_VAL(UWB_DEVICE_0)
+#endif
+        int start_num_free = os_msys_num_free();
 
         /* Also change local colour if this is a broadcast */
         if (addr == 0xffff) {
@@ -126,7 +120,7 @@ rgbpwm_cli_cmd(const struct shell_cmd *cmd, int argc, char **argv, struct stream
             rgbpwm_set_target32(target_wrgb, delay_ms);
         }
     } else if (!strcmp(argv[1], "txcfg")) {
-
+        uint16_t addr=0xffff;
         if (argc < 2) {
             rgbpwm_cli_too_few_args(streamer);
             return 0;
@@ -134,27 +128,22 @@ rgbpwm_cli_cmd(const struct shell_cmd *cmd, int argc, char **argv, struct stream
         if (argc > 2) {
             addr = strtol(argv[2], NULL, 16);
         }
+        addr = addr;
 
+#if MYNEWT_VAL(UWB_DEVICE_0) && MYNEWT_VAL(SMP_UWB_ENABLED) && MYNEWT_VAL(RGBPWM_SMP)
         int cfg_idx=0;
         do {
             struct os_mbuf *om = rgbpwm_get_txcfg_mbuf(cfg_idx++);
             if (!om) {
                 break;
             }
-#if MYNEWT_VAL(UWB_DEVICE_0)
             smp_uwb_instance_t *smpuwb = (smp_uwb_instance_t*)uwb_mac_find_cb_inst_ptr(uwb_dev_idx_lookup(0), UWBEXT_SMP_UWB);
             if (!smpuwb) {
                 streamer_printf(streamer, "ERR, no SMP-UWB enabled\n");
             }
-#if MYNEWT_VAL(SMP_UWB_ENABLED)
-            uwb_smp_queue_tx(smpuwb, addr, UWB_DATA_CODE_SMP_REQUEST, om);
-#else
-            streamer_printf(streamer, "ERR, no SMP-UWB enabled\n");
-#endif // MYNEWT_VAL(SMP_UWB_ENABLED)
-#else
-            streamer_printf(streamer, "ERR, no UWB tranceiver present\n");
-#endif // MYNEWT_VAL(UWB_DEVICE_0)
         } while (1);
+#endif // MYNEWT_VAL(UWB_DEVICE_0)
+#endif // MYNEWT_VAL(RGBPWM_CTRL)
     }
     return 0;
 }
