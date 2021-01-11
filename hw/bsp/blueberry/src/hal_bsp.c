@@ -23,6 +23,8 @@
 #include <string.h>
 #include <sysinit/sysinit.h>
 #include <nrf52.h>
+#include "mcu/nrf52_hal.h"
+#include "mcu/nrf52_periph.h"
 #include "os/os_cputime.h"
 #include "syscfg/syscfg.h"
 #include "sysflash/sysflash.h"
@@ -36,35 +38,12 @@
 #include "hal/hal_gpio.h"
 #include "mcu/nrf52_hal.h"
 
-#if MYNEWT_VAL(UART_0)
-#include "uart/uart.h"
-#include "uart_hal/uart_hal.h"
-#endif
-
 #include "os/os_dev.h"
 #include "bsp.h"
 
 #if MYNEWT_VAL(MPU6500_ONB)
 #include <mpu6500/mpu6500.h>
 static struct mpu6500 mpu6500;
-#endif
-
-#if MYNEWT_VAL(UART_0)
-static struct uart_dev os_bsp_uart0;
-static const struct nrf52_uart_cfg os_bsp_uart0_cfg = {
-    .suc_pin_tx = MYNEWT_VAL(UART_0_PIN_TX),
-    .suc_pin_rx = MYNEWT_VAL(UART_0_PIN_RX),
-    .suc_pin_rts = MYNEWT_VAL(UART_0_PIN_RTS),
-    .suc_pin_cts = MYNEWT_VAL(UART_0_PIN_CTS),
-};
-#endif
-
-#if MYNEWT_VAL(I2C_1)
-static const struct nrf52_hal_i2c_cfg hal_i2c_cfg = {
-    .scl_pin = 12,
-    .sda_pin = 11,
-    .i2c_frequency = 400    /* 400 kHz */
-};
 #endif
 
 #if MYNEWT_VAL(MPU6500_ONB)
@@ -110,6 +89,7 @@ static struct sensor_itf i2c_1_itf_si1 = {
 
 #if MYNEWT_VAL(BMX160_ONB)
 #include <bmx160/bmx160.h>
+#include <bmx160/bmx160_defs.h>
 static struct bmx160 bmx160 = {0};
 
 static struct sensor_itf i2c_1_itf_bmx = {
@@ -204,7 +184,7 @@ config_mpu6500_sensor(void)
     cfg.lpf_cfg = 0;
     cfg.int_enable = 0;
     cfg.int_cfg = 0;
-    
+
     rc = mpu6500_config((struct mpu6500 *)dev, &cfg);
     SYSINIT_PANIC_ASSERT(rc == 0);
 
@@ -235,7 +215,7 @@ config_lps22hb_sensor(void)
     cfg.output_rate = LPS22HB_OUTPUT_RATE_ONESHOT;
     cfg.lpf_cfg = LPS22HB_LPF_CONFIG_DISABLED;
     cfg.int_enable = 0;
-    
+
     rc = lps22hb_config((struct lps22hb *)dev, &cfg);
     SYSINIT_PANIC_ASSERT(rc == 0);
 
@@ -265,7 +245,7 @@ config_hts221_sensor(void)
 
     cfg.mask = SENSOR_TYPE_RELATIVE_HUMIDITY|SENSOR_TYPE_TEMPERATURE;
     cfg.int_enable = 0;
-    
+
     rc = hts221_config((struct hts221 *)dev, &cfg);
     SYSINIT_PANIC_ASSERT(rc == 0);
 
@@ -289,8 +269,11 @@ config_si1133_sensor(void)
     cfg.mask = SENSOR_TYPE_LIGHT;
     cfg.int_enable = 0;
 
-    rc = si1133_config((struct si1133 *)dev, &cfg); 
+    rc = si1133_config((struct si1133 *)dev, &cfg);
     SYSINIT_PANIC_ASSERT(rc == 0);
+
+    si1133_reset((struct si1133 *)dev);
+    si1133_deInit((struct si1133 *)dev);
 
     os_dev_close(dev);
 #endif
@@ -303,16 +286,27 @@ config_bmx160_sensor(void)
 #if MYNEWT_VAL(BMX160_ONB)
     int rc;
     struct os_dev *dev;
-    struct bmx160_cfg cfg;
+    struct bmx160_cfg cfg = {
+        .acc_mode = BMX160_CMD_PMU_MODE_ACC_SUSPEND,
+        .acc_rate = BMX160_ACC_CONF_BWP_NORMAL_AVG4 | BMX160_ACC_CONF_ODR_100HZ,
+        .acc_range = BMX160_ACC_RANGE_2G,
+        .gyro_mode = BMX160_CMD_PMU_MODE_GYR_SUSPEND,
+        .gyro_rate = BMX160_GYR_CONF_BWP_NORMAL | BMX160_GYR_CONF_ODR_100HZ,
+        .gyro_range = BMX160_GYR_RANGE_2000_DPS,
+        .mag_mode = BMX160_CMD_PMU_MODE_MAG_SUSPEND,
+        .mag_rate = BMX160_MAG_CONF_ODR_0_78HZ,
+    };
 
     dev = (struct os_dev *) os_dev_open("bmx160_0", OS_TIMEOUT_NEVER, NULL);
     assert(dev != NULL);
 
     memset(&cfg, 0, sizeof(cfg));
     // TODO config things
-    rc = bmx160_config((struct bmx160 *)dev, &cfg); 
+    rc = bmx160_config((struct bmx160 *)dev, &cfg);
     SYSINIT_PANIC_ASSERT(rc == 0);
 
+    //bmx160_suspend((struct bmx160 *)dev);
+    os_dev_suspend(dev, 0, 0);
     os_dev_close(dev);
 #endif
     return 0;
@@ -325,13 +319,14 @@ sensor_dev_create(void)
 {
     int rc;
     (void)rc;
-    
+
 #if MYNEWT_VAL(MPU6500_ONB)
     rc = os_dev_create((struct os_dev *) &mpu6500, "mpu6500_0",
       OS_DEV_INIT_PRIMARY, 0, mpu6500_init, (void *)&i2c_1_itf_mpu);
     assert(rc == 0);
 #endif
 
+    /* TODO: Replace with @apache-mynewt-core/hw/drivers/sensors/lps33hw */
 #if MYNEWT_VAL(LPS22HB_ONB)
     rc = os_dev_create((struct os_dev *) &lps22hb, "lps22hb_0",
       OS_DEV_INIT_PRIMARY, 0, lps22hb_init, (void *)&i2c_1_itf_lhb);
@@ -349,7 +344,7 @@ sensor_dev_create(void)
       OS_DEV_INIT_PRIMARY, 0, si1133_init, (void *)&i2c_1_itf_si1);
     assert(rc == 0);
 #endif
-    
+
 #if MYNEWT_VAL(BMX160_ONB)
     rc = os_dev_create((struct os_dev *) &bmx160, "bmx160_0",
       OS_DEV_INIT_PRIMARY, 0, bmx160_init, (void *)&i2c_1_itf_bmx);
@@ -367,56 +362,8 @@ void hal_bsp_init(void)
     /* Make sure system clocks have started */
     hal_system_clock_start();
 
-#if MYNEWT_VAL(TIMER_0)
-    rc = hal_timer_init(0, NULL);
-    assert(rc == 0);
-#endif
-#if MYNEWT_VAL(TIMER_1)
-    rc = hal_timer_init(1, NULL);
-    assert(rc == 0);
-#endif
-#if MYNEWT_VAL(TIMER_2)
-    rc = hal_timer_init(2, NULL);
-    assert(rc == 0);
-#endif
-#if MYNEWT_VAL(TIMER_3)
-    rc = hal_timer_init(3, NULL);
-    assert(rc == 0);
-#endif
-#if MYNEWT_VAL(TIMER_4)
-    rc = hal_timer_init(4, NULL);
-    assert(rc == 0);
-#endif
-#if MYNEWT_VAL(TIMER_5)
-    rc = hal_timer_init(5, NULL);
-    assert(rc == 0);
-#endif
-
-#if (MYNEWT_VAL(OS_CPUTIME_TIMER_NUM) >= 0)
-    rc = os_cputime_init(MYNEWT_VAL(OS_CPUTIME_FREQ));
-    assert(rc == 0);
-#endif
-
-#if MYNEWT_VAL(I2C_1)
-    rc = hal_i2c_init(1, (void *)&hal_i2c_cfg);
-    assert(rc == 0);
-#endif
-
-#if MYNEWT_VAL(SPI_0_MASTER)
-    rc = hal_spi_init(0, (void *)&os_bsp_spi0m_cfg, HAL_SPI_TYPE_MASTER);
-    assert(rc == 0);
-#endif
-
-#if MYNEWT_VAL(SPI_0_SLAVE)
-    rc = hal_spi_init(0, (void *)&os_bsp_spi0s_cfg, HAL_SPI_TYPE_SLAVE);
-    assert(rc == 0);
-#endif
-
-#if MYNEWT_VAL(UART_0)
-    rc = os_dev_create((struct os_dev *) &os_bsp_uart0, "uart0",
-      OS_DEV_INIT_PRIMARY, 0, uart_hal_init, (void *)&os_bsp_uart0_cfg);
-    assert(rc == 0);
-#endif
+    /* Create all available nRF52840 peripherals */
+    nrf52_periph_create();
 
     sensor_dev_create();
 }

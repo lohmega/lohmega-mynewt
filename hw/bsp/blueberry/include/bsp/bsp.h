@@ -51,6 +51,9 @@ extern uint8_t _ram_start;
 //#define BUTTON_3 (15)
 //#define BUTTON_4 (16)
 
+#define GPIO00_PIN (31)
+#define GPIO01_PIN (28)
+
 #ifdef __cplusplus
 }
 #endif

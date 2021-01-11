@@ -22,6 +22,9 @@ bsp.compiler: '@apache-mynewt-core/compiler/arm-none-eabi-m4'
 bsp.linkerscript:
     - 'hw/bsp/blueberry/nrf52xxaa.ld'
     - '@apache-mynewt-core/hw/mcu/nordic/nrf52xxx/nrf52.ld'
+bsp.linkerscript.BOOT_NORDIC_DFU.OVERWRITE:
+    - 'hw/bsp/blueberry/nrf52xxaa_nordicdfu.ld'
+    - "@apache-mynewt-core/hw/mcu/nordic/nrf52xxx/nrf52.ld"
 bsp.linkerscript.BOOT_LOADER.OVERWRITE:
     - 'hw/bsp/blueberry/boot-nrf52xxaa.ld'
     - '@apache-mynewt-core/hw/mcu/nordic/nrf52xxx/nrf52.ld'
@@ -62,5 +65,36 @@ bsp.flash_map:
             user_id: 1
             device: 0
             offset: 0x0007d000
-            size: 12kB    
+            size: 12kB
 
+
+bsp.flash_map.BOOT_NORDIC_DFU.OVERWRITE:
+    areas:
+        # System areas.
+        FLASH_AREA_BOOTLOADER:
+            device: 0
+            offset: 0x00000000
+            size: 4kB
+        FLASH_AREA_IMAGE_0:
+            device: 0
+            offset: 0x00001000
+            size: 232kB
+        FLASH_AREA_IMAGE_1:
+            device: 0
+            offset: 0x00042000
+            size: 64kB
+        FLASH_AREA_IMAGE_SCRATCH:
+            device: 0
+            offset: 0x00041000
+            size: 4kB
+        # User areas.
+        FLASH_AREA_REBOOT_LOG:
+            user_id: 0
+            device: 0
+            offset: 0x0003C000
+            size: 16kB
+        FLASH_AREA_NFFS:
+            user_id: 1
+            device: 0
+            offset: 0x0003B000
+            size: 4kB
