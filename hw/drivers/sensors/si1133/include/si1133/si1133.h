@@ -20,6 +20,8 @@
 #ifndef __SENSOR_SI1133_H__
 #define __SENSOR_SI1133_H__
 
+#include <sensor/sensor.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif

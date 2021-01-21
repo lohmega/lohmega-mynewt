@@ -916,7 +916,7 @@ si1133_init(struct os_dev *dev, void *arg)
 
     si1->cfg.mask = SENSOR_TYPE_ALL;
 
-    log_register(dev->od_name, &_log, &log_console_handler, NULL, LOG_SYSLEVEL);
+    log_register((char *)dev->od_name, &_log, &log_console_handler, NULL, LOG_SYSLEVEL);
 
     sensor = &si1->sensor;
 
