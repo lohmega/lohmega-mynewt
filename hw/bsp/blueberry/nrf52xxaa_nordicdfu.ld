@@ -17,9 +17,8 @@
  */
 MEMORY
 {
-  FLASH (rx) : ORIGIN = 0x00001000, LENGTH = 0x3a000
-  RAM (rwx) : ORIGIN = 0x20000008, LENGTH = 0x0fff8
-  UICR_NFCPINS(r) : ORIGIN = 0x1000120C, LENGTH = 0x04
+  FLASH (rx) : ORIGIN = 0x0001f000, LENGTH = 0x3a000
+  RAM (rwx) : ORIGIN = 0x20001000, LENGTH = 0x0efff
 }
 
 /* This linker script is used for nordic dfu, hence no image header */
