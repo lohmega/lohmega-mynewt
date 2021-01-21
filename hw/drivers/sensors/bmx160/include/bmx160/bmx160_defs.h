@@ -170,9 +170,9 @@
 
 
 // unit="m/s^2",
-#define BMX160_SI_UNIT_FACT_ACC (2.0 * 9.81 / 32768.0)
+#define BMX160_SI_UNIT_FACT_ACC_2G (2.0 * 9.81 / 32768.0)
 // unit="dps",
-#define BMX160_SI_UNIT_FACT_GYR (8.0 * 250.0 / 32768.0)
+#define BMX160_SI_UNIT_FACT_GYR_2000DPS (8.0 * 250.0 / 32768.0)
 // unit="T",
 #define BMX160_SI_UNIT_FACT_MAG (6.67 * 4915.0 / 32768.0)
 

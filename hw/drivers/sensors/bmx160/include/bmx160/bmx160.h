@@ -30,6 +30,14 @@ extern "C" {
 #endif
 
 struct bmx160_cfg {
+    uint8_t acc_mode;
+    uint8_t acc_rate;
+    uint8_t acc_range;
+    uint8_t gyro_mode;
+    uint8_t gyro_rate;
+    uint8_t gyro_range;
+    uint8_t mag_mode;
+    uint8_t mag_rate;
 };
 #if 0
 struct bmm150_trim_regs

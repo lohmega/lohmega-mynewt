@@ -29,7 +29,7 @@
 #include "log/log.h"
 
 #include "bmx160/bmx160.h"
-#include "bmx160_defs.h"
+#include "bmx160/bmx160_defs.h"
 #include "bmm150.h"
 
 struct bmx160_regval {
@@ -420,12 +420,20 @@ bmx160_sd_read(struct sensor *sensor,
                    uint32_t timeout)
 {
     int err;
+    uint8_t status = 0;
     struct bmx160 *bmx160 = (struct bmx160 *)SENSOR_GET_DEVICE(sensor);
 
-    uint8_t status = 0;
     err = bmx160_reg_read(bmx160, BMX160_REG_STATUS, &status, 1);
-    if (err)
+    if (err) {
         return err;
+    }
+
+    if ((sensor_type & (SENSOR_TYPE_ACCELEROMETER|
+                        SENSOR_TYPE_GYROSCOPE|
+                        SENSOR_TYPE_MAGNETIC_FIELD)) == 0) {
+        err = SYS_EINVAL;
+        return err;
+    }
 
     if (sensor_type & SENSOR_TYPE_ACCELEROMETER) {
 
@@ -442,7 +450,20 @@ bmx160_sd_read(struct sensor *sensor,
             .sad_y_is_valid = 1,
             .sad_z_is_valid = 1
         };
-        float tounit = BMX160_SI_UNIT_FACT_ACC;
+        float tounit = BMX160_SI_UNIT_FACT_ACC_2G;
+        switch (bmx160->cfg.acc_range) {
+            case BMX160_ACC_RANGE_2G:
+                break;
+            case BMX160_ACC_RANGE_4G:
+                tounit = BMX160_SI_UNIT_FACT_ACC_2G * 2;
+                break;
+            case BMX160_ACC_RANGE_8G:
+                tounit = BMX160_SI_UNIT_FACT_ACC_2G * 4;
+                break;
+            case BMX160_ACC_RANGE_16G:
+                tounit = BMX160_SI_UNIT_FACT_ACC_2G * 8;
+                break;
+        }
         bmx160_unpack_s16xyz(tmp, &sad.sad_x, &sad.sad_y, &sad.sad_z, tounit);
 
         err = cb_func(sensor, cb_arg, &sad, SENSOR_TYPE_ACCELEROMETER);
@@ -466,7 +487,23 @@ bmx160_sd_read(struct sensor *sensor,
             .sgd_z_is_valid = 1
         };
 
-        float tounit = BMX160_SI_UNIT_FACT_GYR;
+        float tounit = BMX160_SI_UNIT_FACT_GYR_2000DPS;
+        switch (bmx160->cfg.gyro_range) {
+            case BMX160_GYR_RANGE_2000_DPS:
+                break;
+            case BMX160_GYR_RANGE_1000_DPS:
+                tounit = BMX160_SI_UNIT_FACT_GYR_2000DPS / 2;
+                break;
+            case BMX160_GYR_RANGE_500_DPS:
+                tounit = BMX160_SI_UNIT_FACT_GYR_2000DPS / 4;
+                break;
+            case BMX160_GYR_RANGE_250_DPS:
+                tounit = BMX160_SI_UNIT_FACT_GYR_2000DPS / 8;
+                break;
+            case BMX160_GYR_RANGE_125_DPS:
+                tounit = BMX160_SI_UNIT_FACT_GYR_2000DPS / 16;
+                break;
+        }
         bmx160_unpack_s16xyz(tmp, &sgd.sgd_x, &sgd.sgd_y, &sgd.sgd_z, tounit);
 
         err = cb_func(sensor, cb_arg, &sgd, SENSOR_TYPE_GYROSCOPE);
@@ -492,7 +529,6 @@ bmx160_sd_read(struct sensor *sensor,
     if (sensor_type & SENSOR_TYPE_TEMPERATURE) {
         return SYS_EINVAL; // TODO
     }
-
     return 0;
 }
 
@@ -535,12 +571,14 @@ static struct sensor_driver bmx160_sensor_driver = {
 static int bmx160_config_acc(struct bmx160 *bmx160, const struct bmx160_cfg *cfg)
 {
     int err;
-    static const struct bmx160_regval regs[] = {
-        {BMX160_REG_CMD, BMX160_CMD_PMU_MODE_ACC_NORMAL},
-        {BMX160_REG_ACC_CONF, BMX160_ACC_CONF_BWP_NORMAL_AVG4 |
-                              BMX160_ACC_CONF_ODR_100HZ},
-        {BMX160_REG_ACC_RANGE, BMX160_ACC_RANGE_2G}
+    struct bmx160_regval regs[] = {
+        {BMX160_REG_CMD, 0},
+        {BMX160_REG_ACC_CONF, 0},
+        {BMX160_REG_ACC_RANGE, 0}
     };
+    regs[0].reg_val = cfg->acc_mode;
+    regs[1].reg_val = cfg->acc_rate;
+    regs[2].reg_val = cfg->acc_range;
 
     for (int i = 0; i < ARRAY_LEN(regs); i++) {
         err = bmx160_reg_write(bmx160, regs[i].reg_addr, &regs[i].reg_val, 1);
@@ -553,12 +591,14 @@ static int bmx160_config_acc(struct bmx160 *bmx160, const struct bmx160_cfg *cfg
 static int bmx160_config_gyr(struct bmx160 *bmx160, const struct bmx160_cfg *cfg)
 {
     int err;
-    static const struct bmx160_regval regs[] = {
-        {BMX160_REG_CMD, BMX160_CMD_PMU_MODE_GYR_NORMAL},
-        {BMX160_REG_GYR_CONF, BMX160_GYR_CONF_BWP_NORMAL |
-                              BMX160_GYR_CONF_ODR_100HZ},
-        {BMX160_REG_GYR_RANGE, BMX160_GYR_RANGE_2000_DPS}
+    struct bmx160_regval regs[] = {
+        {BMX160_REG_CMD, 0},
+        {BMX160_REG_GYR_CONF, 0},
+        {BMX160_REG_GYR_RANGE, 0}
     };
+    regs[0].reg_val = cfg->gyro_mode;
+    regs[1].reg_val = cfg->gyro_rate;
+    regs[2].reg_val = cfg->gyro_range;
 
     for (int i = 0; i < ARRAY_LEN(regs); i++) {
         err = bmx160_reg_write(bmx160, regs[i].reg_addr, &regs[i].reg_val, 1);
@@ -655,8 +695,11 @@ static int bmx160_config_mag(struct bmx160 *bmx160, const struct bmx160_cfg *cfg
     BMM150_GET_REG(BMM150_REG_DATA_X_L, &regval);
     (void) regval;
 
-    BMX160_SET_REG(BMX160_REG_MAG_CONF, BMX160_MAG_CONF_ODR_12_5HZ);
+    BMX160_SET_REG(BMX160_REG_MAG_CONF, cfg->mag_rate);
     BMX160_SET_REG(BMX160_REG_MAG_IF_0_CFG, BMX160_MAG_IF_0_CFG_RD_BURST_8);
+
+    /* Set actual mode wanted for magnetometer here [Normal, suspend, ...] */
+    BMX160_SET_REG(BMX160_REG_CMD, cfg->mag_mode);
 
     return 0;
 
@@ -718,6 +761,63 @@ int bmx160_config(struct bmx160 *bmx160, const struct bmx160_cfg *cfg)
     err = sensor_set_type_mask(sensor, en_mask);
     assert(!err);
 
+    memcpy(&bmx160->cfg, cfg, sizeof(bmx160->cfg));
+    return 0;
+}
+
+static int g_open_cnt = 0;
+int
+bmx160_open(struct os_dev *dev, uint32_t t, void *a)
+{
+    //struct bmx160 *bmx160 = (struct bmx160 *)dev;
+    //printf("%s:%d %p %d\n", __func__, __LINE__, bmx160, g_open_cnt);
+    g_open_cnt++;
+    return 0;
+}
+
+int
+bmx160_suspend(struct os_dev *dev, os_time_t t, int a)
+{
+    uint8_t val, err;
+    struct bmx160 *bmx160 = (struct bmx160 *)dev;
+    printf("%s:%d %p\n", __func__, __LINE__, bmx160);
+    /* Sleep sensors */
+    val = BMX160_CMD_PMU_MODE_ACC_SUSPEND;
+    err = bmx160_reg_write(bmx160, BMX160_REG_CMD, &val, 1);
+    assert(!err);
+    val = BMX160_CMD_PMU_MODE_GYR_SUSPEND;
+    err = bmx160_reg_write(bmx160, BMX160_REG_CMD, &val, 1);
+    assert(!err);
+    val = BMX160_CMD_PMU_MODE_MAG_SUSPEND;
+    err = bmx160_reg_write(bmx160, BMX160_REG_CMD, &val, 1);
+    assert(!err);
+    return 0;
+}
+
+int
+bmx160_resume(struct os_dev *dev)
+{
+    uint8_t val, err;
+    struct bmx160 *bmx160 = (struct bmx160 *)dev;
+    //printf("%s:%d %p\n", __func__, __LINE__, bmx160);
+    val = bmx160->cfg.acc_mode;
+    err = bmx160_reg_write(bmx160, BMX160_REG_CMD, &val, 1);
+    assert(!err);
+    val = bmx160->cfg.gyro_mode;
+    err = bmx160_reg_write(bmx160, BMX160_REG_CMD, &val, 1);
+    assert(!err);
+    val = bmx160->cfg.mag_mode;
+    err = bmx160_reg_write(bmx160, BMX160_REG_CMD, &val, 1);
+    assert(!err);
+    return 0;
+}
+
+int
+bmx160_close(struct os_dev *dev)
+{
+    //struct bmx160 *bmx160 = (struct bmx160 *)dev;
+    //printf("%s:%d %p %d\n", __func__, __LINE__, bmx160, g_open_cnt);
+    g_open_cnt--;
     return 0;
 }
 
@@ -730,6 +830,13 @@ int bmx160_init(struct os_dev *dev, void *arg)
     struct bmx160 *bmx160 = (struct bmx160 *)dev;
     struct sensor *sensor = &bmx160->sensor;
 
+    dev->od_handlers = (struct os_dev_handlers) {
+        .od_open = bmx160_open,
+        .od_suspend = bmx160_suspend,
+        .od_resume = bmx160_resume,
+        .od_close = bmx160_close,
+    };
+
     err = sensor_init(sensor, dev);
     assert(!err);
     // TODO all sensor types
@@ -737,7 +844,7 @@ int bmx160_init(struct os_dev *dev, void *arg)
             (SENSOR_TYPE_GYROSCOPE |
             SENSOR_TYPE_MAGNETIC_FIELD |
             SENSOR_TYPE_ACCELEROMETER),
-                           &bmx160_sensor_driver);
+            &bmx160_sensor_driver);
     assert(!err);
 
     err = sensor_set_interface(sensor, arg);
