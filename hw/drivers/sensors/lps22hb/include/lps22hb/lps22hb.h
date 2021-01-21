@@ -44,7 +44,8 @@ enum lps22hb_lpf_config {
     LPS22HB_LPF_CONFIG_ODR_20   = 0x11 << 2,
 };
     
-#define LPS22HB_WHO_AM_I_VAL 0b10110001
+#define LPS22HB_WHO_AM_I_VAL  0b10110001
+#define LPS22HB_WHO_AM_I_MASK 0b11111101
     
 struct lps22hb_cfg {
     enum lps22hb_output_rate output_rate;

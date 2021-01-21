@@ -372,7 +372,7 @@ lps22hb_init(struct os_dev *dev, void *arg)
 
     lhb->cfg.mask = SENSOR_TYPE_ALL;
 
-    log_register(dev->od_name, &_log, &log_console_handler, NULL, LOG_SYSLEVEL);
+    log_register((char*)dev->od_name, &_log, &log_console_handler, NULL, LOG_SYSLEVEL);
 
     sensor = &lhb->sensor;
 
@@ -418,7 +418,7 @@ lps22hb_config(struct lps22hb *lhb, struct lps22hb_cfg *cfg)
     if (rc) {
         return rc;
     }
-    if (val != LPS22HB_WHO_AM_I_VAL) {
+    if ((val&LPS22HB_WHO_AM_I_MASK) != LPS22HB_WHO_AM_I_VAL) {
         return SYS_EINVAL;
     }
 
