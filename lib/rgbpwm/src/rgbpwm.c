@@ -22,7 +22,7 @@ static uint32_t pwm_freq = 800;
 static uint32_t max_steps[PWM_MAX_NUM_CHANNELS] = {0};
 static uint16_t top_val[PWM_MAX_NUM_CHANNELS] = {0};
 static volatile uint32_t step[PWM_MAX_NUM_CHANNELS] = {0};
-static easing_int_func_t easing_funct[PWM_MAX_NUM_CHANNELS] = {sine_int_in, sine_int_in, sine_int_in, sine_int_in};
+static easing_int_func_t easing_funct[PWM_MAX_NUM_CHANNELS] = {0};
 static int16_t start_value[PWM_MAX_NUM_CHANNELS] = {0};
 static int16_t target_value[PWM_MAX_NUM_CHANNELS] = {0};
 static int16_t current_value[PWM_MAX_NUM_CHANNELS] = {0};
@@ -230,6 +230,7 @@ rgbpwm_init(const struct rgbpwm_cfg *cfg)
 
     for (int i=0;i<num_channels;i++) {
         top_val[i] = (uint16_t) pwm_get_top_value(pwm);
+        easing_funct[i] = sine_int_in;
 
         /* setup led */
         start_value[i] = 0;
