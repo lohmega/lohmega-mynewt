@@ -81,21 +81,26 @@ bsp.flash_map.BOOT_NORDIC_DFU.OVERWRITE:
             size: 232kB
         FLASH_AREA_IMAGE_1:
             device: 0
-            offset: 0x00093000
-            size: 140kB
+            offset: 0x00059000
+            size: 84kB
         FLASH_AREA_IMAGE_SCRATCH:
             device: 0
-            offset: 0x000b6000
+            offset: 0x0006e000
             size: 4kB
 
         # User areas.
         FLASH_AREA_REBOOT_LOG:
             user_id: 0
             device: 0
-            offset: 0x000b7000
-            size: 16kB
+            offset: 0x0006f000
+            size: 12kB
         FLASH_AREA_NFFS:
             user_id: 1
             device: 0
-            offset: 0x000bb000
-            size: 12kB
+            offset: 0x00072000
+            size: 8kB
+        FLASH_AREA_END:
+            user_id: 2
+            device: 0
+            offset: 0x00074000
+            size: 4kB

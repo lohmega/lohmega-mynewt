@@ -18,7 +18,7 @@
 MEMORY
 {
   FLASH (rx) : ORIGIN = 0x0001f000, LENGTH = 0x3a000
-  RAM (rwx) : ORIGIN = 0x20001000, LENGTH = 0x0efff
+  RAM (rwx) : ORIGIN = 0x20004000, LENGTH = 0x0afff
 }
 
 /* This linker script is used for nordic dfu, hence no image header */
