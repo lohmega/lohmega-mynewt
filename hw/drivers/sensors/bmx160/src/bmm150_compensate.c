@@ -12,32 +12,43 @@
 #define BMM150_OVERFLOW_OUTPUT_FLOAT         0.0f
 #endif
 
+float bmm150_compensate_xyf(const struct bmm150_trim_regs *trim, uint16_t data_rhall, int16_t mag_data, uint8_t is_x)
+{
+    float retval = 0;
+    float process_comp_0;
+    float process_comp_1;
+    float process_comp_2;
+    float process_comp_3;
+    float process_comp_4;
+    float dig_xy1;
+    float dig_xy2;
+
+    /* Overflow condition check */
+    if (mag_data == BMM150_XYAXES_FLIP_OVERFLOW_ADCVAL) {
+        return BMM150_OVERFLOW_OUTPUT_FLOAT;
+    }
+
+    if ((data_rhall == 0) || (trim->dig_xyz1 == 0)) {
+        return BMM150_OVERFLOW_OUTPUT_FLOAT;
+    }
+
+    process_comp_0 = (((float)trim->dig_xyz1) * 16384.0f / data_rhall);
+    retval = (process_comp_0 - 16384.0f);
+    process_comp_1 = ((float)trim->dig_xy2) * (retval * retval / 268435456.0f);
+    process_comp_2 = process_comp_1 + retval * ((float)trim->dig_xy1) / 16384.0f;
+    dig_xy2 = (is_x) ? trim->dig_x2 : trim->dig_y2;
+    process_comp_3 = dig_xy2 + 160.0f;
+    process_comp_4 = mag_data * ((process_comp_2 + 256.0f) * process_comp_3);
+    dig_xy1 = (is_x) ? trim->dig_x1 : trim->dig_y1;
+    retval = ((process_comp_4 / 8192.0f) + (dig_xy1 * 8.0f)) / 16.0f;
+
+    return retval;
+}
+
 
 float bmm150_compensate_xf(const struct bmm150_trim_regs *trim, uint16_t data_rhall, int16_t mag_data_x)
 {
-    float retval = 0;
-    float process_comp_x0;
-    float process_comp_x1;
-    float process_comp_x2;
-    float process_comp_x3;
-    float process_comp_x4;
-
-    /* Overflow condition check */
-    if (mag_data_x == BMM150_XYAXES_FLIP_OVERFLOW_ADCVAL)
-        return BMM150_OVERFLOW_OUTPUT_FLOAT;
-
-    if ((data_rhall == 0) || (trim->dig_xyz1 == 0))
-        return BMM150_OVERFLOW_OUTPUT_FLOAT;
-        
-    process_comp_x0 = (((float)trim->dig_xyz1) * 16384.0f / data_rhall);
-    retval = (process_comp_x0 - 16384.0f);
-    process_comp_x1 = ((float)trim->dig_xy2) * (retval * retval / 268435456.0f);
-    process_comp_x2 = process_comp_x1 + retval * ((float)trim->dig_xy1) / 16384.0f;
-    process_comp_x3 = ((float)trim->dig_x2) + 160.0f;
-    process_comp_x4 = mag_data_x * ((process_comp_x2 + 256.0f) * process_comp_x3);
-    retval = ((process_comp_x4 / 8192.0f) + (((float)trim->dig_x1) * 8.0f)) / 16.0f;
-
-    return retval;
+    return bmm150_compensate_xyf(trim, data_rhall, mag_data_x, 1);
 }
 
 /*!
@@ -46,28 +57,7 @@ float bmm150_compensate_xf(const struct bmm150_trim_regs *trim, uint16_t data_rh
  */
 float bmm150_compensate_yf(const struct bmm150_trim_regs *trim, uint16_t data_rhall, int16_t mag_data_y)
 {
-    float retval = 0;
-    float process_comp_y0;
-    float process_comp_y1;
-    float process_comp_y2;
-    float process_comp_y3;
-    float process_comp_y4;
- 
-    if (mag_data_y == BMM150_XYAXES_FLIP_OVERFLOW_ADCVAL) 
-        return  BMM150_OVERFLOW_OUTPUT_FLOAT;
-
-    if ((data_rhall == 0) || (trim->dig_xyz1 == 0))
-        return  BMM150_OVERFLOW_OUTPUT_FLOAT;
-
-    process_comp_y0 = ((float)trim->dig_xyz1) * 16384.0f / data_rhall;
-    retval = process_comp_y0 - 16384.0f;
-    process_comp_y1 = ((float)trim->dig_xy2) * (retval * retval / 268435456.0f);
-    process_comp_y2 = process_comp_y1 + retval * ((float)trim->dig_xy1) / 16384.0f;
-    process_comp_y3 = ((float)trim->dig_y2) + 160.0f;
-    process_comp_y4 = mag_data_y * (((process_comp_y2) + 256.0f) * process_comp_y3);
-    retval = ((process_comp_y4 / 8192.0f) + (((float)trim->dig_y1) * 8.0f)) / 16.0f;
-
-    return retval;
+    return bmm150_compensate_xyf(trim, data_rhall, mag_data_y, 0);
 }
 
 float bmm150_compensate_zf(const struct bmm150_trim_regs *trim, uint16_t data_rhall, int16_t mag_data_z)

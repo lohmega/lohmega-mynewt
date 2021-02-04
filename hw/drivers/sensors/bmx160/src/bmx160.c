@@ -378,12 +378,16 @@ static int bmx160_fetch_mag(struct bmx160 *bmx160, struct sensor_mag_data *smd)
         return err;
 
     int16_t raw_x, raw_y, raw_z;
-    buf += unpack_s16(buf, &raw_x);
-    buf += unpack_s16(buf, &raw_y);
-    buf += unpack_s16(buf, &raw_z);
     uint16_t rhall = 0;
-    buf += unpack_u16(buf, &rhall);
-
+    /* Reg manipulations taken from bmm150_read_mag_data */
+    /* X (b[0] & 0xF8) >> 3 | (b[1] << 5) */
+    raw_x = BMM150_GET_BITS(buf[0], BMM150_DATA_X) | (((int16_t)((int8_t)buf[1])) *32);
+    /* Y (b[0] & 0xF8) >> 3 | (b[1] << 5) */
+    raw_y = BMM150_GET_BITS(buf[2], BMM150_DATA_Y) | (((int16_t)((int8_t)buf[3])) *32);
+    /* Z (b[0] & 0xFE) >> 1 | (b[1] << 7) */
+    raw_z = BMM150_GET_BITS(buf[4], BMM150_DATA_Z) | (((int16_t)((int8_t)buf[5])) *128);
+    /* RHALL (b[0] & 0xFC) >> 2 | (b[1] << 6) */
+    rhall = BMM150_GET_BITS(buf[6], BMM150_DATA_RHALL) | (((int16_t)((int8_t)buf[7])) *64);
 
     smd->smd_x_is_valid = 1;
     smd->smd_y_is_valid = 1;
@@ -395,10 +399,11 @@ static int bmx160_fetch_mag(struct bmx160 *bmx160, struct sensor_mag_data *smd)
         smd->smd_z = raw_z;
     }
     else {
-        float f = BMX160_SI_UNIT_FACT_MAG;
-        smd->smd_x = f * bmm150_compensate_xf(&priv->trim_regs, rhall, raw_x);
-        smd->smd_y = f * bmm150_compensate_yf(&priv->trim_regs, rhall, raw_y);
-        smd->smd_z = f * bmm150_compensate_zf(&priv->trim_regs, rhall, raw_z);
+        /* bmm150_compensate_* returns uT already */
+        float f = 1.0f;
+        smd->smd_x = f*bmm150_compensate_xf(&priv->trim_regs, rhall, raw_x);
+        smd->smd_y = f*bmm150_compensate_yf(&priv->trim_regs, rhall, raw_y);
+        smd->smd_z = f*bmm150_compensate_zf(&priv->trim_regs, rhall, raw_z);
     }
 
     return 0;
