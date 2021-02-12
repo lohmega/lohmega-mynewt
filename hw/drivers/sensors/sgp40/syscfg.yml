@@ -1,0 +1,4 @@
+syscfg.defs:
+
+    SGP40_DEBUG_ENABLE:
+        value: 0
