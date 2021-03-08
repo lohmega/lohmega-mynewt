@@ -61,7 +61,7 @@ typedef int (*io_expander_init_out_func_t)(struct io_expander_dev *dev, int pin,
  * @return 0 on success, non-zero error code on failure.
  */
 typedef int (*io_expander_pin_dir_func_t)(struct io_expander_dev *dev, int pin, int *dir);
-    
+
 /**
  * Write an IO_EXPANDER out pin.
  *
@@ -97,7 +97,7 @@ typedef int (*io_expander_read_func_t)(struct io_expander_dev *dev, int pin);
 typedef int (*io_expander_irq_init_func_t)(struct io_expander_dev *dev, int pin,
                                            hal_gpio_irq_handler_t handler, void *arg,
                                            hal_gpio_irq_trig_t trig, hal_gpio_pull_t pull);
-    
+
 /**
  * Release interrupt on IO_EXPANDER pin.
  *
@@ -117,7 +117,7 @@ typedef int (*io_expander_irq_release_func_t)(struct io_expander_dev *dev, int p
  * @return int 0: low, 1: high
  */
 typedef int (*io_expander_irq_enable_func_t)(struct io_expander_dev *dev, int pin);
-    
+
 /**
  * Disable interrupt on IO_EXPANDER pin.
  *
@@ -128,7 +128,7 @@ typedef int (*io_expander_irq_enable_func_t)(struct io_expander_dev *dev, int pi
  */
 typedef int (*io_expander_irq_disable_func_t)(struct io_expander_dev *dev, int pin);
 
-    
+
 struct io_expander_driver_funcs {
     io_expander_init_in_func_t  iof_init_in;
     io_expander_init_out_func_t iof_init_out;
@@ -144,7 +144,7 @@ struct io_expander_driver_funcs {
 
 /* Storage for IRQ callbacks. */
 #define IO_EXPANDER_MAX_IRQ 16
-    
+
 struct io_expander_irq {
     hal_gpio_irq_trig_t trig;
     uint8_t enabled;
@@ -233,7 +233,7 @@ io_expander_read(struct io_expander_dev *dev, int pin)
 {
     return (dev->iof_funcs.iof_read(dev, pin));
 }
-    
+
 
 /**
  * Attach an Interrupt to an IO_EXPANDER pin.
@@ -252,7 +252,7 @@ io_expander_irq_init(struct io_expander_dev *dev, int pin, hal_gpio_irq_handler_
 {
     return (dev->iof_funcs.iof_irq_init(dev, pin, handler, arg, trig, pull));
 }
-    
+
 /**
  * Release interrupt on IO_EXPANDER pin.
  *
@@ -266,7 +266,7 @@ io_expander_irq_release(struct io_expander_dev *dev, int pin)
 {
     (dev->iof_funcs.iof_irq_release(dev, pin));
 }
-    
+
 
 static inline void
 io_expander_irq_enable(struct io_expander_dev *dev, int pin)
@@ -279,7 +279,7 @@ io_expander_irq_disable(struct io_expander_dev *dev, int pin)
 {
     (dev->iof_funcs.iof_irq_disable(dev, pin));
 }
-    
+
 
 #ifdef __cplusplus
 }

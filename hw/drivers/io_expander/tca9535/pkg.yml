@@ -31,4 +31,3 @@ pkg.deps:
 
 pkg.deps.TEST:
    - hw/hal
-   - test/testutil

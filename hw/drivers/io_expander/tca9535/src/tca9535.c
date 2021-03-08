@@ -122,8 +122,8 @@ static struct log _log;
 
 static int tca9535_write_out(struct io_expander_dev *dev, int pin, int val);
 
-                                      
-                                      
+
+
 /**
  * Writes a single word to the specified register
  *
@@ -142,7 +142,7 @@ tca95xx_write16(struct tca9535_io_expander_dev_cfg *cfg, uint8_t reg, uint16_t v
     uint16_t readback;
 #endif
 
-	uint8_t out[3] = {reg, value&0xff, (value>>8)};
+    uint8_t out[3] = {reg, value&0xff, (value>>8)};
     struct hal_i2c_master_data data_struct = {
         .address = cfg->i2c_addr,
         .len = 3,
@@ -165,7 +165,7 @@ tca95xx_write16(struct tca9535_io_expander_dev_cfg *cfg, uint8_t reg, uint16_t v
         STATS_INC(g_tca9535_stats, write_errors);
         goto exit;
     }
-    
+
 #ifdef TCA95xx_VERIFY_WRITES
     data_struct.buffer = &reg;
     data_struct.len = 1;
@@ -248,7 +248,7 @@ tca9535_init_in16(struct io_expander_dev *dev, uint16_t pin_mask)
     int rc;
     uint16_t pin_config;
     struct tca9535_io_expander_dev_cfg *cfg;
-    
+
     cfg  = (struct tca9535_io_expander_dev_cfg *)dev->ioexp_dev.od_init_arg;
 
     rc = tca95xx_read16(cfg, TCA95xx_configuration, &pin_config);
@@ -259,13 +259,13 @@ tca9535_init_in16(struct io_expander_dev *dev, uint16_t pin_mask)
 
     pin_config |= pin_mask;
     cfg->direction = pin_config;
-    
+
     rc = tca95xx_write16(cfg, TCA95xx_configuration, pin_config);
     if (rc) {
         TCA9535_ERR("Failed to set in16 pins 0x%02X\n", cfg->i2c_addr);
         return rc;
     }
-    
+
     return 0;
 }
 
@@ -294,13 +294,13 @@ tca9535_init_out16(struct io_expander_dev *dev, uint16_t pinmask)
 
     pin_config &= ~(pinmask);
     cfg->direction = pin_config;
-    
+
     rc = tca95xx_write16(cfg, TCA95xx_configuration, pin_config);
     if (rc) {
         TCA9535_ERR("Err. out16 pins\n");
         return rc;
-    }    
-    
+    }
+
     return 0;
 }
 
@@ -312,7 +312,7 @@ tca9535_pin_dir(struct io_expander_dev *dev, int pin, int *dir)
 
     struct tca9535_io_expander_dev_cfg *cfg;
     cfg = (struct tca9535_io_expander_dev_cfg *)dev->ioexp_dev.od_init_arg;
-    
+
     if (dir)
     {
         *dir = (pinmask & cfg->direction);
@@ -331,8 +331,8 @@ tca9535_init_out(struct io_expander_dev *dev, int pin, int val)
     if (rc) {
         TCA9535_ERR("Failed to set out pins 0x%02X\n", cfg->i2c_addr);
         return rc;
-    }    
-    
+    }
+
     return tca9535_write_out(dev, pin, val);
 }
 
@@ -355,13 +355,13 @@ tca9535_write_out(struct io_expander_dev *dev, int pin, int val)
         pin_output |= (1 << pin);
     else
         pin_output &= ~(1 << pin);
-    
+
     rc = tca95xx_write16(cfg, TCA95xx_output, pin_output);
     if (rc) {
         TCA9535_ERR("Failed to write out pins 0x%02X\n", cfg->i2c_addr);
         return rc;
     }
-    
+
     return 0;
 }
 
@@ -415,7 +415,7 @@ tca9535_irq_init(struct io_expander_dev *dev, int pin,
     irq->trig = trig;
     irq->func = handler;
     irq->arg = arg;
-    
+
     TCA9535_DEBUG("Intr init pin %d\n", pin);
     return 0;
 }
@@ -476,7 +476,7 @@ tca9535_interrupt_task(void *arg)
 
 /**
  *  Event callback that is called everytime an input-pin changes
- *  If an input pin has a callback associated with the current 
+ *  If an input pin has a callback associated with the current
  *  change (rising / falling) call this is called.
  **/
 static void
@@ -486,7 +486,7 @@ tca9535_interrupt_ev_cb(struct os_event *ev)
     uint16_t pin_input, changed_pins;
     struct tca9535_io_expander_dev_cfg *cfg;
     struct io_expander_dev *dev = (struct io_expander_dev *) ev->ev_arg;
-    
+
     cfg  = (struct tca9535_io_expander_dev_cfg *)dev->ioexp_dev.od_init_arg;
 
     /* Read current state of pins */
@@ -504,7 +504,7 @@ tca9535_interrupt_ev_cb(struct os_event *ev)
     rc = 1;
     for (i=0;i<IO_EXPANDER_MAX_IRQ;i++) {
         if (dev->ioexp_irqs[i].enabled == 0) rc=0;
-        
+
         if ((changed_pins & (1<<i)) == 0) continue;
 #if MYNEWT_VAL(TCA9535_INT_STATS)
         switch(i) {
@@ -527,7 +527,7 @@ tca9535_interrupt_ev_cb(struct os_event *ev)
         }
 #endif
     }
-    
+
     if (rc == 1)
     {
         /* No interrupts to service */
@@ -547,7 +547,7 @@ tca9535_interrupt_ev_cb(struct os_event *ev)
         assert(dev->ioexp_irqs[i].func);
         dev->ioexp_irqs[i].func(dev->ioexp_irqs[i].arg);
     }
-    
+
 }
 
 
@@ -574,7 +574,7 @@ tca9535_io_expander_dev_init(struct os_dev *odev, void *arg)
 
     dev = (struct io_expander_dev *)odev;
     dev->number_of_pins = 16;
-    
+
     log_register(odev->od_name, &_log, &log_console_handler, NULL, LOG_SYSLEVEL);
 
     iof = &dev->iof_funcs;
@@ -589,7 +589,7 @@ tca9535_io_expander_dev_init(struct os_dev *odev, void *arg)
     iof->iof_irq_release = tca9535_irq_release;
     iof->iof_irq_enable = tca9535_irq_enable;
     iof->iof_irq_disable = tca9535_irq_disable;
-    
+
     /* Clear interrupt structure */
     for (i=0;i<IO_EXPANDER_MAX_IRQ;i++)
     {
@@ -620,19 +620,19 @@ tca9535_io_expander_task_init(struct io_expander_dev *dev)
     /* Use a dedicate event queue for timer and interrupt events */
     os_eventq_init(&interrupt_eventq);
     assert(os_eventq_inited(&interrupt_eventq));
-    
-    /* 
+
+    /*
      * Create the task to process timer and interrupt events from the
      * cfg->interrupt_eventq event queue.
      */
     interrupt_ev.ev_queued = 0;
     interrupt_ev.ev_cb = tca9535_interrupt_ev_cb;
     interrupt_ev.ev_arg = (void *)dev;
-    
-    os_task_init(&interrupt_task_str, "tca_irq", 
+
+    os_task_init(&interrupt_task_str, "tca_irq",
                  tca9535_interrupt_task,
-                 (void *) dev, 
-                 MYNEWT_VAL(TCA9535_DEV_TASK_PRIO), OS_WAIT_FOREVER, 
+                 (void *) dev,
+                 MYNEWT_VAL(TCA9535_DEV_TASK_PRIO), OS_WAIT_FOREVER,
                  interrupt_task_stack,
                  MYNEWT_VAL(TCA9535_DEV_TASK_STACK_SZ));
 
