@@ -85,6 +85,10 @@ int
 rgbpwm_set_target(float *value, float *delay, int len)
 {
     os_sr_t sr;
+    if (!pwm) {
+        return OS_EINVAL;
+    }
+
     target_reached = 0;
     for (int i=0;i<len && i < num_channels;i++) {
         OS_ENTER_CRITICAL(sr);
