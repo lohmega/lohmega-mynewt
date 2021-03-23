@@ -29,7 +29,7 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "sgp40.h"
+#include "sensirion_sgp40.h"
 #include "sgp_git_version.h"
 
 static const uint8_t SGP40_I2C_ADDRESS = 0x59;

@@ -18,6 +18,7 @@
 #include "sgp40/sgp40.h"
 // wrapping the sensiron dirver
 #include "sensirion_sgp40.h"
+#include "sensirion_voc_algorithm.h"
 
 #if 1
 #define LOG_MODULE_SGP40 (30)
@@ -39,15 +40,46 @@ static inline struct sgp40_priv * sgp40_get_priv(struct sgp40 *sgp40)
     return (struct sgp40_priv *) sgp40->_priv;
 }
 #endif
+static VocAlgorithmParams sgp40_voc_alg_params;
 
 static int sgp40_sd_set_config(struct sensor *sensor, void *cfg)
 {
-    struct sgp40 *sgp40         = (struct sgp40 *)SENSOR_GET_DEVICE(sensor);
+    struct sgp40 *sgp40 = (struct sgp40 *)SENSOR_GET_DEVICE(sensor);
     struct sgp40_cfg *sgp40_cfg = cfg;
 
     return sgp40_config(sgp40, sgp40_cfg);
 }
 
+#if 0
+static int sgp40_measure_voc_index_with_rh_t(int32_t* voc_index,
+                                              int32_t* relative_humidity,
+                                              int32_t* temperature) 
+{
+    int32_t int_temperature, int_humidity;
+    int16_t ret;
+    uint16_t sraw;
+
+    ret = shtc1_measure_blocking_read(&int_temperature, &int_humidity);
+    if (ret)
+        return SENSIRION_GET_RHT_SIGNAL_FAILED;
+
+    if (temperature) {
+        *temperature = int_temperature;
+    }
+    if (relative_humidity) {
+        *relative_humidity = int_humidity;
+    }
+
+    ret = sgp40_measure_raw_with_rht_blocking_read(int_humidity,
+                                                   int_temperature, &sraw);
+    if (ret) {
+        return SENSIRION_GET_SGP_SIGNAL_FAILED;
+    }
+
+    VocAlgorithm_process(&sgp40_voc_alg_params, sraw, voc_index);
+    return 0;
+}
+#endif
 static int sgp40_sd_read(struct sensor *sensor, sensor_type_t sensor_type,
                          sensor_data_func_t cb_func, void *cb_arg,
                          uint32_t timeout)
@@ -61,33 +93,24 @@ static int sgp40_sd_read(struct sensor *sensor, sensor_type_t sensor_type,
     }
 
     struct sensor_voc_data svd = { 0 };
+    // TODO get rh and temp from other sensor
+    float rh_pc = 50;
+    float temp_C = 25;
 
-    uint16_t tvoc_ppb   = 0;
-    uint16_t co2_eq_ppm = 0;
-    err = sgp40_measure_iaq_blocking_read(&tvoc_ppb, &co2_eq_ppm);
+    // Relative humidity in percent multiplied by 1000. 'milli percent'
+    int32_t rh_mpc = rh_pc * 1000;
+    // Temperature in degree Celsius multiplied by 1000. i.e. milli celisius
+    int32_t temp_mC = temp_C * 1000;
+    uint16_t sraw = 0;
+    err = sgp40_measure_raw_with_rht_blocking_read(rh_mpc, temp_mC, &sraw);
     if (err)
         return err;
+    int32_t voc_index = 0;
+    VocAlgorithm_process(&sgp40_voc_alg_params, sraw, &voc_index);
 
     /* Total Volatile Organic Compounds in ppb */
     svd.svd_tvoc_is_valid = 1;
-    svd.svd_tvoc          = tvoc_ppb;
-
-    /* carbon dioxide equivalent in ppm */
-    svd.svd_co2eq_is_valid = 1;
-    svd.svd_co2eq          = co2_eq_ppm;
-    // TODO? only retrive iaq_baseline every hour?
-    /** TODO!? set_iaq_baseline (if stored measurement is < 1 week old) or only
-     * set is_valid if retrived from chip and >= 1 h of "uptime"/measurement.
-     */
-    uint32_t iaq_baseline = 0;
-    err                   = sgp40_get_iaq_baseline(&iaq_baseline);
-    if (err) {
-        svd.svd_iaqbl_is_valid = 0;
-        svd.svd_iaqbl          = 0;
-    } else {
-        svd.svd_iaqbl_is_valid = 1;
-        svd.svd_iaqbl          = iaq_baseline;
-    }
+    svd.svd_tvoc = voc_index; // TODO confirm unit!
 
     err = cb_func(sensor, cb_arg, &svd, SENSOR_TYPE_VOC);
     if (err)
@@ -144,33 +167,14 @@ int sgp40_config(struct sgp40 *sgp40, const struct sgp40_cfg *cfg)
             SGP40_LOG_DEBUG("Sensirion driver version %s\n", driver_ver);
         }
 
-        uint16_t feature_set_version = 0;
-        uint8_t product_type         = 0;
-        err = sgp40_get_feature_set_version(&feature_set_version,
-                                            &product_type);
-        if (!err) {
-            SGP40_LOG_DEBUG("Feature set version: %u\n", feature_set_version);
-            SGP40_LOG_DEBUG("Product type: %u\n", product_type);
-        }
-
+        //uint8_t serial_id[SGP40_SERIAL_ID_NUM_BYTES];
         uint64_t serial_id = 0;
-        err                = sgp40_get_serial_id(&serial_id);
+        err  = sgp40_get_serial_id((uint8_t *)&serial_id);
         if (!err) {
             SGP40_LOG_DEBUG("SerialID: %" PRIu64 "\n", serial_id);
         }
 
-        uint16_t ethanol_raw_signal = 0;
-        uint16_t h2_raw_signal      = 0;
-        err = sgp40_measure_raw_blocking_read(&ethanol_raw_signal,
-                                              &h2_raw_signal);
-        if (!err) {
-            SGP40_LOG_DEBUG("Ethanol raw signal: %u\n", ethanol_raw_signal);
-            SGP40_LOG_DEBUG("H2 raw signal: %u\n", h2_raw_signal);
-        }
     }
-
-    err = sgp40_iaq_init();
-    assert(!err);
 
     err = sensor_set_type_mask(sensor, SENSOR_TYPE_VOC);
     assert(!err);
@@ -214,5 +218,6 @@ int sgp40_init(struct os_dev *dev, void *arg)
     uint8_t hardcoded_addr = sgp40_get_configured_address();
     assert(hardcoded_addr == itf->si_addr);
 
+    VocAlgorithm_init(&sgp40_voc_alg_params);
     return 0;
 }
