@@ -33,13 +33,6 @@
 
 static struct log _log;
 
-#if 0
-static inline struct sgp40_priv * sgp40_get_priv(struct sgp40 *sgp40)
-{
-    _Static_assert(sizeof(sgp40->_priv) >= sizeof(struct sgp40_priv), "");
-    return (struct sgp40_priv *) sgp40->_priv;
-}
-#endif
 static VocAlgorithmParams sgp40_voc_alg_params;
 
 static int sgp40_sd_set_config(struct sensor *sensor, void *cfg)
@@ -50,36 +43,6 @@ static int sgp40_sd_set_config(struct sensor *sensor, void *cfg)
     return sgp40_config(sgp40, sgp40_cfg);
 }
 
-#if 0
-static int sgp40_measure_voc_index_with_rh_t(int32_t* voc_index,
-                                              int32_t* relative_humidity,
-                                              int32_t* temperature) 
-{
-    int32_t int_temperature, int_humidity;
-    int16_t ret;
-    uint16_t sraw;
-
-    ret = shtc1_measure_blocking_read(&int_temperature, &int_humidity);
-    if (ret)
-        return SENSIRION_GET_RHT_SIGNAL_FAILED;
-
-    if (temperature) {
-        *temperature = int_temperature;
-    }
-    if (relative_humidity) {
-        *relative_humidity = int_humidity;
-    }
-
-    ret = sgp40_measure_raw_with_rht_blocking_read(int_humidity,
-                                                   int_temperature, &sraw);
-    if (ret) {
-        return SENSIRION_GET_SGP_SIGNAL_FAILED;
-    }
-
-    VocAlgorithm_process(&sgp40_voc_alg_params, sraw, voc_index);
-    return 0;
-}
-#endif
 static int sgp40_sd_read(struct sensor *sensor, sensor_type_t sensor_type,
                          sensor_data_func_t cb_func, void *cb_arg,
                          uint32_t timeout)
@@ -124,7 +87,6 @@ static int sgp40_sd_read(struct sensor *sensor, sensor_type_t sensor_type,
 static int sgp40_sd_get_config(struct sensor *sensor, sensor_type_t sensor_type,
                                struct sensor_cfg *cfg)
 {
-
     if (sensor_type & SENSOR_TYPE_VOC) {
         cfg->sc_valtype = SENSOR_VALUE_TYPE_OPAQUE;
     }
@@ -208,22 +170,6 @@ int sgp40_create_i2c_sensor_dev(struct bus_i2c_node *node, const char *name,
     rc = bus_i2c_node_create(name, node, i2c_cfg, sensor_itf);
 
     return rc;
-#if 0
-    struct lps33hw *dev = (struct lps33hw *)node;
-    struct bus_node_callbacks cbs = {
-        .init = init_node_cb,
-    };
-    int rc;
-
-    dev->node_is_spi = false;
-
-    sensor_itf->si_dev = &node->bnode.odev;
-    bus_node_set_callbacks((struct os_dev *)node, &cbs);
-
-    rc = bus_i2c_node_create(name, node, i2c_cfg, sensor_itf);
-#endif
-
-    return rc;
 }
 
 int sgp40_init(struct os_dev *dev, void *arg)
@@ -254,3 +200,4 @@ int sgp40_init(struct os_dev *dev, void *arg)
     VocAlgorithm_init(&sgp40_voc_alg_params);
     return 0;
 }
+

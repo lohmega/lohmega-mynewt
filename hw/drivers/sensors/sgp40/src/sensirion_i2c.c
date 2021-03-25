@@ -22,14 +22,12 @@
 static uint8_t g_sgp40_i2c_bus = 0;
 
 // hack to make bus driver work with sensirion's i2c abstraction
-struct sensor_itf *g_sgp40_itf = NULL;
+static struct sensor_itf *g_sgp40_itf = NULL;
 
 
 static inline uint8_t get_itf_i2c_addr(const struct sensor_itf *itf)
 {
     const struct os_dev *dev = itf->si_dev;
-
-    //const struct bus_node *bnode = NULL;
     const struct bus_i2c_node *node = (const struct bus_i2c_node *)dev;
     return node->addr;
 }
@@ -78,8 +76,8 @@ int8_t sensirion_i2c_read(uint8_t address, uint8_t* data, uint16_t count)
     return err ? -1 : 0;
 }
 
-int8_t sensirion_i2c_write(uint8_t address, const uint8_t* data,
-                           uint16_t count) 
+int8_t sensirion_i2c_write(uint8_t address, const uint8_t* data, 
+            uint16_t count)
 {
     int err = 0;
 
@@ -109,7 +107,7 @@ int8_t sensirion_i2c_write(uint8_t address, const uint8_t* data,
 /**
  * should delay at least the given time, but may also sleep longer.
  */
-void sensirion_sleep_usec(uint32_t usec) 
+void sensirion_sleep_usec(uint32_t usec)
 {
     os_time_delay((OS_TICKS_PER_SEC * usec) / 1e6 + 1); // TODO overflow check
 }
