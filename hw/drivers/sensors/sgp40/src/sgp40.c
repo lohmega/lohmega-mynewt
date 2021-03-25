@@ -88,6 +88,8 @@ static int sgp40_sd_read(struct sensor *sensor, sensor_type_t sensor_type,
     struct sgp40 *sgp40 = (struct sgp40 *)SENSOR_GET_DEVICE(sensor);
     (void)sgp40;
 
+    struct sensor_itf *itf = SENSOR_GET_ITF(sensor);
+    (void) itf;
     if (!(sensor_type & SENSOR_TYPE_VOC)) {
         return -1;
     }
@@ -182,6 +184,48 @@ int sgp40_config(struct sgp40 *sgp40, const struct sgp40_cfg *cfg)
     return 0;
 }
 
+
+static void init_node_cb(struct bus_node *bnode, void *arg)
+{
+    struct sensor_itf *itf = arg;
+    sgp40_init((struct os_dev *)bnode, itf);
+}
+
+static struct bus_node_callbacks sgp40_bus_node_cbs = {
+   .init = init_node_cb,
+};
+
+int sgp40_create_i2c_sensor_dev(struct bus_i2c_node *node, const char *name,
+                              const struct bus_i2c_node_cfg *i2c_cfg,
+                              struct sensor_itf *sensor_itf)
+{
+
+    int rc;
+
+    sensor_itf->si_dev = &node->bnode.odev;
+    bus_node_set_callbacks((struct os_dev *)node, &sgp40_bus_node_cbs);
+
+    rc = bus_i2c_node_create(name, node, i2c_cfg, sensor_itf);
+
+    return rc;
+#if 0
+    struct lps33hw *dev = (struct lps33hw *)node;
+    struct bus_node_callbacks cbs = {
+        .init = init_node_cb,
+    };
+    int rc;
+
+    dev->node_is_spi = false;
+
+    sensor_itf->si_dev = &node->bnode.odev;
+    bus_node_set_callbacks((struct os_dev *)node, &cbs);
+
+    rc = bus_i2c_node_create(name, node, i2c_cfg, sensor_itf);
+#endif
+
+    return rc;
+}
+
 int sgp40_init(struct os_dev *dev, void *arg)
 {
     int err               = 0;
@@ -205,18 +249,7 @@ int sgp40_init(struct os_dev *dev, void *arg)
 
     // note: itf is initalized above
     struct sensor_itf *itf = SENSOR_GET_ITF(sensor);
-
-    // probalby does nothing.
-    sensirion_i2c_init();
-
-    //
-    err = sensirion_i2c_select_bus(itf->si_num);
-    assert(!err);
-
-    // unfortenly sgp40 address is hardcoded. verify it.
-
-    uint8_t hardcoded_addr = sgp40_get_configured_address();
-    assert(hardcoded_addr == itf->si_addr);
+    sensirion_i2c_init(itf);
 
     VocAlgorithm_init(&sgp40_voc_alg_params);
     return 0;
