@@ -65,7 +65,7 @@ int8_t sensirion_i2c_read(uint8_t address, uint8_t* data, uint16_t count)
     struct sensor_itf *itf = g_sgp40_itf;
     assert(itf);
     assert(address == get_itf_i2c_addr(itf));
-    err = bus_node_simple_write(itf->si_dev, data, count);
+    err = bus_node_simple_read(itf->si_dev, data, count);
 #else
     struct hal_i2c_master_data op = {
         .address = address,
