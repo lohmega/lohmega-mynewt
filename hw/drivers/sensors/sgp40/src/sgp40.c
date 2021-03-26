@@ -10,6 +10,9 @@
 
 #include "sensor/sensor.h"
 
+#include "sensor/humidity.h"
+#include "sensor/temperature.h"
+
 #include "sensor/voc.h"
 
 #include "log/log.h"
@@ -19,6 +22,7 @@
 // wrapping the sensiron dirver
 #include "sensirion_sgp40.h"
 #include "sensirion_voc_algorithm.h"
+
 
 #if 1
 #define LOG_MODULE_SGP40 (30)
@@ -35,12 +39,112 @@ static struct log _log;
 
 static VocAlgorithmParams sgp40_voc_alg_params;
 
+static struct sgp40_rht_compensate_s {
+    struct sgp40_ext_rhum_s {
+        struct sensor* sensor;
+        struct os_sem sem;
+        struct sensor_humid_data data;
+    } rhum;
+
+    struct sgp40_ext_temp_s {
+        struct sensor* sensor;
+        struct os_sem sem;
+        struct sensor_temp_data data;
+    } temp;
+} sgp40_rht_compensate;
+
 static int sgp40_sd_set_config(struct sensor *sensor, void *cfg)
 {
     struct sgp40 *sgp40 = (struct sgp40 *)SENSOR_GET_DEVICE(sensor);
     struct sgp40_cfg *sgp40_cfg = cfg;
 
     return sgp40_config(sgp40, sgp40_cfg);
+}
+
+static int sgp40_ext_rhum_get_cb(struct sensor *sensor, void *arg, void *data, sensor_type_t type)
+{
+    struct sgp40_ext_rhum_s *p = arg;
+    if (type & SENSOR_TYPE_RELATIVE_HUMIDITY) {
+        struct sensor_humid_data *shd = &p->data;
+        memcpy(shd, data, sizeof(*shd));
+        os_sem_release(&p->sem);
+    }
+    else {
+        assert(0);
+    }
+    return 0;
+}
+
+static int sgp40_ext_rhum_get(struct sgp40_ext_rhum_s *p, float *val)
+{
+    int err;
+    p->data.shd_humid_is_valid = 0;
+    err = os_sem_init(&p->sem, 0);
+    assert(!err);
+
+    err = sensor_read(p->sensor,
+            SENSOR_TYPE_RELATIVE_HUMIDITY,
+            &sgp40_ext_rhum_get_cb,
+            p,
+            OS_TICKS_PER_SEC / 10);
+    if (err) {
+        SGP40_LOG_ERROR("sensor_read rhum rc=%d\n", err);
+        return err;
+    }
+    err = os_sem_pend(&p->sem, OS_TICKS_PER_SEC);
+    assert(!err);
+
+    if (!p->data.shd_humid_is_valid) {
+        SGP40_LOG_ERROR("shd_humid_is_valid == 0\n");
+        return -1;
+    }
+
+    *val = p->data.shd_humid;
+    return 0;
+}
+
+static int sgp40_ext_temp_get_cb(struct sensor *sensor, void *arg, void *data,
+                          sensor_type_t type)
+{
+    struct sgp40_ext_temp_s *p = arg;
+    if (type & (SENSOR_TYPE_TEMPERATURE | SENSOR_TYPE_AMBIENT_TEMPERATURE)) {
+        struct sensor_temp_data *std = &p->data;
+        memcpy(std, data, sizeof(*std));
+        os_sem_release(&p->sem);
+    }
+    else {
+        assert(0);
+    }
+
+    return 0;
+}
+
+static int sgp40_ext_temp_get(struct sgp40_ext_temp_s *p, float *val)
+{
+    int err;
+    p->data.std_temp_is_valid = 0;
+    err = os_sem_init(&p->sem, 0);
+    assert(!err);
+
+    err = sensor_read(p->sensor,
+            SENSOR_TYPE_TEMPERATURE,
+            &sgp40_ext_temp_get_cb,
+            p,
+            OS_TICKS_PER_SEC / 10);
+    if (err) {
+        SGP40_LOG_ERROR("sensor_read temp rc=%d\n", err);
+        return err;
+    }
+    err = os_sem_pend(&p->sem, OS_TICKS_PER_SEC);
+    assert(!err);
+
+    if (!p->data.std_temp_is_valid) {
+        SGP40_LOG_ERROR("std_temp_is_valid == 0\n");
+        return -1;
+    }
+
+    *val = p->data.std_temp;
+    return 0;
 }
 
 static int sgp40_sd_read(struct sensor *sensor, sensor_type_t sensor_type,
@@ -57,13 +161,27 @@ static int sgp40_sd_read(struct sensor *sensor, sensor_type_t sensor_type,
         return -1;
     }
 
+    // Default values if no external RH/Temp sensor to compensate with
+    float rhum_pc = 50; // in percent
+    float temp_C = 25; // in deg C
+
+    if (MYNEWT_VAL(SGP40_RHT_COMPENSATE)) {
+
+        err = sgp40_ext_rhum_get(&sgp40_rht_compensate.rhum, &rhum_pc);
+        if (err) {
+            return err;
+        }
+
+        err = sgp40_ext_temp_get(&sgp40_rht_compensate.temp, &temp_C);
+        if (err) {
+            return err;
+        }
+    }
+
     struct sensor_voc_data svd = { 0 };
-    // TODO get rh and temp from other sensor
-    float rh_pc = 50;
-    float temp_C = 25;
 
     // Relative humidity in percent multiplied by 1000. 'milli percent'
-    int32_t rh_mpc = rh_pc * 1000;
+    int32_t rh_mpc = rhum_pc * 1000;
     // Temperature in degree Celsius multiplied by 1000. i.e. milli celisius
     int32_t temp_mC = temp_C * 1000;
     uint16_t sraw = 0;
@@ -143,6 +261,26 @@ int sgp40_config(struct sgp40 *sgp40, const struct sgp40_cfg *cfg)
     err = sensor_set_type_mask(sensor, SENSOR_TYPE_VOC);
     assert(!err);
 
+    if (MYNEWT_VAL(SGP40_RHT_COMPENSATE)) {
+        struct sensor *s;
+        struct os_dev *dev;
+        sensor_mgr_lock();
+
+        s = sensor_mgr_find_next_bytype(SENSOR_TYPE_RELATIVE_HUMIDITY, NULL);
+        assert(s);
+        sgp40_rht_compensate.rhum.sensor = s;
+        dev = SENSOR_GET_DEVICE(s);
+        SGP40_LOG_DEBUG("compensate rh_sensor:%s\n", dev->od_name);
+
+        // TODO use SENSOR_TYPE_AMBIENT_TEMPERATURE?
+        s = sensor_mgr_find_next_bytype(SENSOR_TYPE_TEMPERATURE, NULL);
+        assert(s);
+        sgp40_rht_compensate.temp.sensor = s;
+        dev = SENSOR_GET_DEVICE(s);
+        SGP40_LOG_DEBUG("compensate temp_sensor:%s\n", dev->od_name);
+
+        sensor_mgr_unlock();
+    }
     return 0;
 }
 
@@ -161,21 +299,15 @@ int sgp40_create_i2c_sensor_dev(struct bus_i2c_node *node, const char *name,
                               const struct bus_i2c_node_cfg *i2c_cfg,
                               struct sensor_itf *sensor_itf)
 {
-
-    int rc;
-
     sensor_itf->si_dev = &node->bnode.odev;
     bus_node_set_callbacks((struct os_dev *)node, &sgp40_bus_node_cbs);
-
-    rc = bus_i2c_node_create(name, node, i2c_cfg, sensor_itf);
-
-    return rc;
+    return bus_i2c_node_create(name, node, i2c_cfg, sensor_itf);
 }
 
 int sgp40_init(struct os_dev *dev, void *arg)
 {
-    int err               = 0;
-    struct sgp40 *sgp40   = (struct sgp40 *)dev;
+    int err = 0;
+    struct sgp40 *sgp40 = (struct sgp40 *)dev;
     struct sensor *sensor = &sgp40->sensor;
 
     err = log_register("sgp40", &_log, &log_console_handler, NULL,

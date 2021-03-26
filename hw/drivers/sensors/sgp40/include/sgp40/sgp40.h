@@ -22,6 +22,7 @@ struct sgp40 {
 
     struct sensor sensor;
     struct sgp40_cfg cfg;
+
 };
 
 int sgp40_init(struct os_dev *, void *arg);
