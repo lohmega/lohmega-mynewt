@@ -274,14 +274,15 @@ int sgp40_config(struct sgp40 *sgp40, const struct sgp40_cfg *cfg)
 
         // TODO use SENSOR_TYPE_AMBIENT_TEMPERATURE?
         s = sensor_mgr_find_next_bytype(SENSOR_TYPE_TEMPERATURE, NULL);
-        assert(s);
+        assert(s); 
         sgp40_rht_compensate.temp.sensor = s;
         dev = SENSOR_GET_DEVICE(s);
         SGP40_LOG_DEBUG("compensate temp_sensor:%s\n", dev->od_name);
 
         sensor_mgr_unlock();
     }
-    return 0;
+
+    return err;
 }
 
 
