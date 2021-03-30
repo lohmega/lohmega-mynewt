@@ -1,0 +1,23 @@
+pkg.name: "hw/drivers/sensors/sgp40"
+pkg.description: "Drivers for Sensirion SGP40 VOC sensors"
+pkg.author: "Lohmega"
+pkg.homepage: "http://www.lohmega.com/"
+pkg.keywords:
+    - sensor
+    - voc
+    - sensirion
+
+pkg.deps:
+    - "@apache-mynewt-core/hw/hal"
+    - "@apache-mynewt-core/kernel/os"
+    - "@apache-mynewt-core/hw/util/i2cn"
+
+
+#pkg.req_apis:
+
+#pkg.ign_files:
+
+#pkg.cflags:
+
+#pkg.ign_dirs:
+

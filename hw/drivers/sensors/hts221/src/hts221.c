@@ -82,6 +82,55 @@ log_err(uint8_t reg)
     HTS221_ERR("r/w err %x\n", reg);
 }
 
+
+#if MYNEWT_VAL(BUS_DRIVER_PRESENT)
+static void
+init_node_cb(struct bus_node *bnode, void *arg)
+{
+    struct sensor_itf *itf = arg;
+    hts221_init((struct os_dev *)bnode, itf);
+}
+
+static struct bus_node_callbacks hts221_bus_node_cbs = {
+   .init = init_node_cb,
+};
+
+int
+hts221_create_i2c_sensor_dev(struct bus_i2c_node *node, const char *name,
+                              const struct bus_i2c_node_cfg *i2c_cfg,
+                              struct sensor_itf *sensor_itf)
+{
+    sensor_itf->si_dev = &node->bnode.odev;
+    bus_node_set_callbacks((struct os_dev *)node, &hts221_bus_node_cbs);
+    return bus_i2c_node_create(name, node, i2c_cfg, sensor_itf);
+}
+
+int
+hts221_write8(struct hts221 *dev, uint8_t reg, uint32_t value)
+{
+    struct sensor_itf *itf = &dev->sensor.s_itf;
+    uint8_t payload[2] = { reg, value & 0xFF };
+    int rc = bus_node_simple_write(itf->si_dev, payload, sizeof(payload));
+    if (rc) {
+        log_err(reg);
+        HTS221_STATS_INC(write_errors);
+    }
+    return rc;
+}
+
+int
+hts221_read8(struct hts221 *dev, uint8_t reg, uint8_t *value)
+{
+    struct sensor_itf *itf = &dev->sensor.s_itf;
+    int rc = bus_node_simple_write_read_transact(itf->si_dev, &reg, 1, value, 1);
+    if (rc) {
+        log_err(reg);
+        HTS221_STATS_INC(read_errors);
+    }
+    return rc;
+}
+#else
+
 /**
  * Writes a single byte to the specified register
  *
@@ -190,7 +239,7 @@ hts221_read8(struct hts221 *dev, uint8_t reg, uint8_t *value)
 
     return rc;
 }
-
+#endif
 
 
 int
@@ -229,69 +278,69 @@ hts221_read_calibration(struct hts221 *dev, hts221_cal_t *cal)
     rc = hts221_read8(dev, HTS221_CAL_H0RHX2, &(cal->H0_rH_x2));
     if (rc) {
         return rc;
-    }    
+    }
 
     rc = hts221_read8(dev, HTS221_CAL_H1RHX2, &(cal->H1_rH_x2));
     if (rc) {
         return rc;
-    }    
+    }
 
     rc = hts221_read8(dev, HTS221_CAL_T1T0MSB, &msb);
     if (rc) {
         return rc;
-    }    
+    }
 
     rc = hts221_read8(dev, HTS221_CAL_T0DEGCX8, &lsb);
     if (rc) {
         return rc;
-    }    
+    }
     cal->T0_decC_x8 = (((uint16_t)msb & 0x3)<<8) | lsb;
 
     rc = hts221_read8(dev, HTS221_CAL_T1DEGCX8, &lsb);
     if (rc) {
         return rc;
-    }    
+    }
     cal->T1_decC_x8 = (((uint16_t)msb & 0xC)<<6) | lsb;
 
 
     rc = hts221_read8(dev, HTS221_CAL_H0T0OUT_L, &lsb);
     if (rc) {
         return rc;
-    }    
+    }
     rc = hts221_read8(dev, HTS221_CAL_H0T0OUT_H, &msb);
     if (rc) {
         return rc;
-    }    
+    }
     cal->H0_T0_out = ((int16_t)msb<<8) | lsb;
 
     rc = hts221_read8(dev, HTS221_CAL_H1T0OUT_L, &lsb);
     if (rc) {
         return rc;
-    }    
+    }
     rc = hts221_read8(dev, HTS221_CAL_H1T0OUT_H, &msb);
     if (rc) {
         return rc;
-    }    
+    }
     cal->H1_T0_out = ((int16_t)msb<<8) | lsb;
-    
+
     rc = hts221_read8(dev, HTS221_CAL_T0OUT_L, &lsb);
     if (rc) {
         return rc;
-    }    
+    }
     rc = hts221_read8(dev, HTS221_CAL_T0OUT_H, &msb);
     if (rc) {
         return rc;
-    }    
+    }
     cal->T0_out = ((int16_t)msb<<8) | lsb;
 
     rc = hts221_read8(dev, HTS221_CAL_T1OUT_L, &lsb);
     if (rc) {
         return rc;
-    }    
+    }
     rc = hts221_read8(dev, HTS221_CAL_T1OUT_H, &msb);
     if (rc) {
         return rc;
-    }    
+    }
     cal->T1_out = ((int16_t)msb<<8) | lsb;
 
     return 0;
@@ -315,7 +364,7 @@ hts221_init(struct os_dev *dev, void *arg)
     if (!arg || !dev) {
         return SYS_ENODEV;
     }
-    
+
     lhb = (struct hts221 *) dev;
 
     lhb->cfg.mask = SENSOR_TYPE_ALL;
@@ -360,8 +409,8 @@ hts221_config(struct hts221 *lhb, struct hts221_cfg *cfg)
         STATS_HDR(g_hts221_stats), STATS_SIZE_INIT_PARMS(g_hts221_stats,
         STATS_SIZE_32), STATS_NAME_INIT_PARMS(hts221_stats), "sen_hts221");
     SYSINIT_PANIC_ASSERT(rc == 0);
-#endif        
-    
+#endif
+
     rc = hts221_read8(lhb, HTS221_WHO_AM_I, &val);
     if (rc) {
         return rc;
@@ -371,12 +420,12 @@ hts221_config(struct hts221 *lhb, struct hts221_cfg *cfg)
     }
 
     hts221_read_calibration(lhb, &(lhb->calibration));
-    
+
     rc = hts221_enable_interrupt(lhb, lhb->cfg.int_enable);
     if (rc) {
         return rc;
     }
-        
+
     rc = sensor_set_type_mask(&(lhb->sensor), lhb->cfg.mask);
     if (rc) {
         return rc;
@@ -410,10 +459,10 @@ hts221_read_raw(struct hts221 *dev, int32_t *temp, uint16_t *rh)
     int rc;
     uint8_t msb, lsb;
     int16_t raw;
-    
+
     rc = hts221_read8(dev, HTS221_TEMP_OUT_H, &msb);
     rc = hts221_read8(dev, HTS221_TEMP_OUT_L, &lsb);
-    
+
     if (rc) {
         return rc;
     }
@@ -439,7 +488,7 @@ hts221_read_raw(struct hts221 *dev, int32_t *temp, uint16_t *rh)
     if(rh) {
         *rh = hts221_calc_rh(&(dev->calibration), raw);
     }
-        
+
     return 0;
 }
 
@@ -466,18 +515,17 @@ hts221_sensor_read(struct sensor *sensor, sensor_type_t type,
 
     /* Start conversion */
     hts221_start_conv(lhb);
-    
 
     if (type & SENSOR_TYPE_TEMPERATURE) {
         rc = hts221_read8(lhb, HTS221_TEMP_OUT_H, &msb);
         rc = hts221_read8(lhb, HTS221_TEMP_OUT_L, &lsb);
-            
+
         if (rc) {
             return rc;
         }
         raw = ((int16_t)msb<<8) | lsb;
 
-        /* Data in C */ 
+        /* Data in C */
         databuf.std.std_temp = hts221_calc_temperature(&(lhb->calibration), raw);
         databuf.std.std_temp /= 1000.0F;
         databuf.std.std_temp_is_valid = 1;
@@ -509,7 +557,7 @@ hts221_sensor_read(struct sensor *sensor, sensor_type_t type,
             return rc;
         }
     }
-    
+
     return 0;
 }
 

@@ -40,16 +40,20 @@ typedef struct {
     int16_t  T1_out;
 } hts221_cal_t;
 
-    
+
 #define HTS221_WHO_AM_I_VAL 0xBC
-    
+
 struct hts221_cfg {
     uint8_t int_enable;
     sensor_type_t mask;
 };
 
 struct hts221 {
+#if MYNEWT_VAL(BUS_DRIVER_PRESENT)
+    struct bus_i2c_node i2c_node;
+#else
     struct os_dev dev;
+#endif
     struct sensor sensor;
     struct os_mutex *i2c_mutex;
     struct hts221_cfg cfg;
@@ -57,8 +61,15 @@ struct hts221 {
     hts221_cal_t calibration;
 };
 
+#if MYNEWT_VAL(BUS_DRIVER_PRESENT)
+int
+hts221_create_i2c_sensor_dev(struct bus_i2c_node *node, const char *name,
+                              const struct bus_i2c_node_cfg *i2c_cfg,
+                              struct sensor_itf *sensor_itf);
+#endif
+
 int hts221_start_conv(struct hts221 *dev);
-    
+
 int hts221_enable_interrupt(struct hts221 *dev, uint8_t enable);
 
 int hts221_init(struct os_dev *, void *);

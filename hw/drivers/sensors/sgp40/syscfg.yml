@@ -1,0 +1,10 @@
+syscfg.defs:
+
+    SGP40_DEBUG_ENABLE:
+        value: 0
+
+
+    SGP40_RHT_COMPENSATE:
+        description: 'compensate with realtive humidity and temperatyre from
+        other sensor. if disabled these values are compile-time constants'
+        value: 1
