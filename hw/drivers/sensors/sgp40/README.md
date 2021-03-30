@@ -30,4 +30,8 @@ sensirion_voc_algorithm.h
 sensirion_voc_algorithm.c 
 ```
 
+Notes
+=====
+- add self test at init?
+- to save power the hotplaits could be turned off (see manual)
 
