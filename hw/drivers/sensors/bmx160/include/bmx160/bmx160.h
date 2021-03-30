@@ -39,25 +39,13 @@ struct bmx160_cfg {
     uint8_t mag_mode;
     uint8_t mag_rate;
 };
-#if 0
-struct bmm150_trim_regs
-{
-    int8_t dig_x1;
-    int8_t dig_y1;
-    int8_t dig_x2;
-    int8_t dig_y2;
-    uint16_t dig_z1;
-    int16_t dig_z2;
-    int16_t dig_z3;
-    int16_t dig_z4;
-    uint8_t dig_xy1;
-    int8_t dig_xy2;
-    uint16_t dig_xyz1;
-};
-#endif
 
 struct bmx160 {
+#if MYNEWT_VAL(BUS_DRIVER_PRESENT)
+    struct bus_i2c_node i2c_node;
+#else
     struct os_dev dev;
+#endif
     struct sensor sensor;
     struct bmx160_cfg cfg;
     uint8_t _txbuf[8];
@@ -65,7 +53,13 @@ struct bmx160 {
     uint64_t _priv[32];
 };
 
-int bmx160_init(struct os_dev *, void *arg);
+#if MYNEWT_VAL(BUS_DRIVER_PRESENT)
+int bmx160_create_i2c_sensor_dev(struct bus_i2c_node *node, const char *name,
+                              const struct bus_i2c_node_cfg *i2c_cfg,
+                              struct sensor_itf *sensor_itf);
+#endif
+
+int bmx160_init(struct os_dev *dev, void *arg);
 int bmx160_config(struct bmx160 *bmx160, const struct bmx160_cfg *cfg);
 
 #ifdef __cplusplus

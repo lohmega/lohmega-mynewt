@@ -205,34 +205,33 @@ static int bmx160_reg_write(struct bmx160 *bmx160,
     }
 
     struct sensor_itf *itf = SENSOR_GET_ITF(&bmx160->sensor);
+#if MYNEWT_VAL(BUS_DRIVER_PRESENT)
+    err = bus_node_simple_write(itf->si_dev, bmx160->_txbuf, size + 1);
+#else
+
+    // only support i2c for this interface
+    if (itf->si_type != SENSOR_ITF_I2C) {
+        return SYS_EINVAL;
+    }
+
     err = sensor_itf_lock(itf, BMX160_ITF_LOCK_TIMEOUT);
     if (err) {
         return err;
     }
 
-    switch(itf->si_type) {
-        case SENSOR_ITF_I2C: {
-            struct hal_i2c_master_data op = {
-                .address = itf->si_addr,
-                .len     = size + 1,
-                .buffer  = bmx160->_txbuf
-            };
+    struct hal_i2c_master_data op = {
+        .address = itf->si_addr,
+        .len     = size + 1,
+        .buffer  = bmx160->_txbuf
+    };
 
-            err = hal_i2c_master_write(itf->si_num, &op, BMX160_RW_TIMEOUT, 1);
-        }
-            break;
-
-        case SENSOR_ITF_SPI:
-        default:
-            err = SYS_EINVAL;
-            break;
-    }
+    err = hal_i2c_master_write(itf->si_num, &op, BMX160_RW_TIMEOUT, 1);
 
     sensor_itf_unlock(itf);
-
-    if (err)
+#endif
+    if (err) {
         return err;
-
+    }
     //BMX160_LOG_DEBUG("WR_REG:0x%02X=0x%02X\n", addr, bmx160->_txbuf[1]);
 
     if (addr == BMX160_REG_CMD) {
