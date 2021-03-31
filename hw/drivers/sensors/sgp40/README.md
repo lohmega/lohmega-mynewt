@@ -33,5 +33,6 @@ sensirion_voc_algorithm.c
 Notes
 =====
 - add self test at init?
-- to save power the hotplaits could be turned off (see manual)
 
+- idle mode is activated after power-up, after calling the sgp40_heater_off,or
+  after a soft reset power consumption in idle mode is 34 uA (typ.)

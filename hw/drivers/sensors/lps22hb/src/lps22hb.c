@@ -34,7 +34,7 @@
 #include "log/log.h"
 #include <stats/stats.h>
 
-#if MYNEWT_VAL(HTS221_STATS_ENABLE)
+#if MYNEWT_VAL(LPS22HB_STATS_ENABLE)
 STATS_SECT_START(lps22hb_stats)
     STATS_SECT_ENTRY(read_errors)
     STATS_SECT_ENTRY(write_errors)
@@ -406,7 +406,7 @@ lps22hb_config(struct lps22hb *lhb, struct lps22hb_cfg *cfg)
         memcpy(&lhb->cfg, cfg, sizeof(struct lps22hb_cfg));
     }
 
-#if MYNEWT_VAL(HTS221_STATS_ENABLE)
+#if MYNEWT_VAL(LPS22HB_STATS_ENABLE)
     /* Init stats */
     rc = stats_init_and_reg(
         STATS_HDR(g_lps22hb_stats), STATS_SIZE_INIT_PARMS(g_lps22hb_stats,
