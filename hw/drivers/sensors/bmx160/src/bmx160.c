@@ -42,23 +42,16 @@ struct bmx160_priv {
     struct bmm150_trim_regs trim_regs;
 };
 
-#ifndef ARRAY_LEN
-#define ARRAY_LEN(array) (sizeof(array) / sizeof(array[0]))
-#endif
-
 
 #define BMX160_ITF_LOCK_TIMEOUT (OS_TIMEOUT_NEVER)
 #define BMX160_RW_TIMEOUT       (OS_TICKS_PER_SEC / 10)
 #define BMX160_DEBUG_ENABLE     MYNEWT_VAL(BMX160_DEBUG_ENABLE)
 #define BMX160_RAW_VALUES       MYNEWT_VAL(BMX160_RAW_VALUES)
 
-
-
 #define LOG_MODULE_BMX160    (160)
 #define BMX160_LOG_INFO(...)    LOG_INFO(&_log, LOG_MODULE_BMX160, __VA_ARGS__)
 #define BMX160_LOG_ERROR(...)   LOG_ERROR(&_log, LOG_MODULE_BMX160, __VA_ARGS__)
 #define BMX160_LOG_DEBUG(...)   LOG_DEBUG(&_log, LOG_MODULE_BMX160, __VA_ARGS__)
-
 
 
 static struct log _log;
@@ -82,7 +75,7 @@ static inline unsigned int unpack_s16(const uint8_t *src, int16_t *dst)
     return sizeof(int16_t);
 }
 
-static inline struct bmx160_priv * bmx160_get_priv(struct bmx160 *bmx160)
+static inline struct bmx160_priv *bmx160_get_priv(struct bmx160 *bmx160)
 {
     _Static_assert(sizeof(bmx160->_priv) >= sizeof(struct bmx160_priv), "");
     return (struct bmx160_priv *) bmx160->_priv;
@@ -104,13 +97,46 @@ static int bmx160_unpack_s16xyz(uint8_t *src, float *x, float *y, float *z, floa
     return 0;
 }
 
-static int bmx160_reg_read_i2c(
-        struct sensor_itf   *itf,
-        uint8_t             addr,
-        uint8_t             *data,
-        uint8_t             size)
+#if MYNEWT_VAL(BUS_DRIVER_PRESENT)
+static void bmx160_init_node_cb(struct bus_node *bnode, void *arg)
+{
+    struct sensor_itf *itf = arg;
+    bmx160_init((struct os_dev *)bnode, itf);
+}
+
+static struct bus_node_callbacks bmx160_bus_node_cbs = {
+   .init = bmx160_init_node_cb,
+};
+
+int bmx160_create_i2c_sensor_dev(struct bus_i2c_node *node, const char *name,
+                              const struct bus_i2c_node_cfg *i2c_cfg,
+                              struct sensor_itf *sensor_itf)
+{
+    sensor_itf->si_dev = &node->bnode.odev;
+    bus_node_set_callbacks((struct os_dev *)node, &bmx160_bus_node_cbs);
+    return bus_i2c_node_create(name, node, i2c_cfg, sensor_itf);
+}
+#endif
+
+static int bmx160_reg_read(struct bmx160 *bmx160,
+              uint8_t addr,
+              uint8_t *data,
+              size_t size)
 {
     int err = 0;
+    struct sensor_itf *itf = SENSOR_GET_ITF(&bmx160->sensor);
+
+#if MYNEWT_VAL(BUS_DRIVER_PRESENT)
+    err = bus_node_simple_write_read_transact(itf->si_dev, &addr, 1, data, size);
+#else
+
+    if (!size) {
+        return SYS_EINVAL;
+    }
+    // only support i2c for this interface
+    if (itf->si_type != SENSOR_ITF_I2C) {
+        return SYS_EINVAL;
+    }
 
     err = sensor_itf_lock(itf, BMX160_ITF_LOCK_TIMEOUT);
     if (err) {
@@ -141,31 +167,10 @@ static int bmx160_reg_read_i2c(
 
 done:
     sensor_itf_unlock(itf);
+#endif
 
     return err;
-}
 
-static int bmx160_reg_read(struct bmx160 *bmx160,
-              uint8_t addr,
-              uint8_t *data,
-              size_t size)
-{
-    struct sensor_itf *itf = SENSOR_GET_ITF(&bmx160->sensor);
-
-    if (!size) {
-        return SYS_EINVAL;
-    }
-
-    switch(itf->si_type) {
-        case SENSOR_ITF_I2C:
-            return bmx160_reg_read_i2c(itf, addr, data, size);
-            break;
-        case SENSOR_ITF_SPI:
-        default:
-            return SYS_EINVAL;
-    }
-
-    return SYS_EINVAL;
 }
 
 
@@ -245,6 +250,7 @@ static int bmx160_reg_write(struct bmx160 *bmx160,
 
     return 0;
 }
+
 
 // wait on bmm/mag/aux operation to complete
 static int bmx160_bmm_operation_wait(struct bmx160 *bmx160)
@@ -584,7 +590,7 @@ static int bmx160_config_acc(struct bmx160 *bmx160, const struct bmx160_cfg *cfg
     regs[1].reg_val = cfg->acc_rate;
     regs[2].reg_val = cfg->acc_range;
 
-    for (int i = 0; i < ARRAY_LEN(regs); i++) {
+    for (int i = 0; i < ARRAY_SIZE(regs); i++) {
         err = bmx160_reg_write(bmx160, regs[i].reg_addr, &regs[i].reg_val, 1);
         assert(!err);
     }
@@ -604,7 +610,7 @@ static int bmx160_config_gyr(struct bmx160 *bmx160, const struct bmx160_cfg *cfg
     regs[1].reg_val = cfg->gyro_rate;
     regs[2].reg_val = cfg->gyro_range;
 
-    for (int i = 0; i < ARRAY_LEN(regs); i++) {
+    for (int i = 0; i < ARRAY_SIZE(regs); i++) {
         err = bmx160_reg_write(bmx160, regs[i].reg_addr, &regs[i].reg_val, 1);
         assert(!err);
     }
