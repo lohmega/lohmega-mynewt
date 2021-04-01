@@ -75,6 +75,28 @@ static const struct sensor_driver g_lps22hb_sensor_driver = {
     lps22hb_sensor_get_config
 };
 
+#if MYNEWT_VAL(BUS_DRIVER_PRESENT)
+static void
+lps22hb_init_node_cb(struct bus_node *bnode, void *arg)
+{
+    struct sensor_itf *itf = arg;
+    lps22hb_init((struct os_dev *)bnode, itf);
+}
+
+static struct bus_node_callbacks lps22hb_bus_node_cbs = {
+   .init = lps22hb_init_node_cb,
+};
+
+int
+lps22hb_create_i2c_sensor_dev(struct bus_i2c_node *node, const char *name,
+                              const struct bus_i2c_node_cfg *i2c_cfg,
+                              struct sensor_itf *sensor_itf)
+{
+    sensor_itf->si_dev = &node->bnode.odev;
+    bus_node_set_callbacks((struct os_dev *)node, &lps22hb_bus_node_cbs);
+    return bus_i2c_node_create(name, node, i2c_cfg, sensor_itf);
+}
+#endif
 /**
  * Writes a single byte to the specified register
  *
@@ -88,9 +110,13 @@ int
 lps22hb_write8(struct lps22hb *dev, uint8_t reg, uint32_t value)
 {
     int rc;
-    os_error_t err = 0;
-    struct sensor_itf *itf = &dev->sensor.s_itf;
+    struct sensor_itf *itf = SENSOR_GET_ITF(&dev->sensor);
     uint8_t payload[2] = { reg, value & 0xFF };
+
+#if MYNEWT_VAL(BUS_DRIVER_PRESENT)
+    rc = bus_node_simple_write(itf->si_dev, payload, sizeof(payload));
+#else
+    os_error_t err = 0;
 
     struct hal_i2c_master_data data_struct = {
         .address = itf->si_addr,
@@ -118,7 +144,7 @@ lps22hb_write8(struct lps22hb *dev, uint8_t reg, uint32_t value)
         err = os_mutex_release(dev->i2c_mutex);
         assert(err == OS_OK);
     }
-
+#endif
     return rc;
 }
 
@@ -135,9 +161,13 @@ int
 lps22hb_read8(struct lps22hb *dev, uint8_t reg, uint8_t *value)
 {
     int rc;
-    os_error_t err = 0;
-    struct sensor_itf *itf = &dev->sensor.s_itf;
+    struct sensor_itf *itf = SENSOR_GET_ITF(&dev->sensor);
 
+#if MYNEWT_VAL(BUS_DRIVER_PRESENT)
+    rc = bus_node_simple_write_read_transact(itf->si_dev, &reg, 1, value, 1);
+
+#else
+    os_error_t err = 0;
     struct hal_i2c_master_data data_struct = {
         .address = itf->si_addr,
         .len = 1,
@@ -177,6 +207,7 @@ exit:
         err = os_mutex_release(dev->i2c_mutex);
         assert(err == OS_OK);
     }
+#endif
 
     return rc;
 }
@@ -195,9 +226,12 @@ int
 lps22hb_read_bytes(struct lps22hb *dev, uint8_t reg, uint8_t *buffer, uint32_t length)
 {
     int rc;
-    os_error_t err = 0;
-    struct sensor_itf *itf = &dev->sensor.s_itf;
+    struct sensor_itf *itf = SENSOR_GET_ITF(&dev->sensor);
 
+#if MYNEWT_VAL(BUS_DRIVER_PRESENT)
+    rc = bus_node_simple_write_read_transact(itf->si_dev, &reg, 1, buffer, length);
+#else
+    os_error_t err = 0;
     struct hal_i2c_master_data data_struct = {
         .address = itf->si_addr,
         .len = 1,
@@ -238,7 +272,7 @@ exit:
         err = os_mutex_release(dev->i2c_mutex);
         assert(err == OS_OK);
     }
-
+#endif
     return rc;
 }
 
@@ -367,7 +401,7 @@ lps22hb_init(struct os_dev *dev, void *arg)
     if (!arg || !dev) {
         return SYS_ENODEV;
     }
-    
+
     lhb = (struct lps22hb *) dev;
 
     lhb->cfg.mask = SENSOR_TYPE_ALL;
@@ -431,18 +465,18 @@ lps22hb_config(struct lps22hb *lhb, struct lps22hb_cfg *cfg)
     if (rc) {
         return rc;
     }
-	
-	// enable block data read (bit 1 == 1)
+
+    // enable block data read (bit 1 == 1)
     rc = lps22hb_write8(lhb, LPS22HB_CTRL_REG1, 0x02);
     if (rc) {
         return rc;
     }
-    
+
     rc = lps22hb_enable_interrupt(lhb, lhb->cfg.int_enable);
     if (rc) {
         return rc;
     }
-        
+
     rc = sensor_set_type_mask(&(lhb->sensor), lhb->cfg.mask);
     if (rc) {
         return rc;
@@ -488,12 +522,12 @@ lps22hb_read_raw(struct lps22hb *dev, uint32_t *pressure)
     if (rc) {
         return rc;
     }
-    
+
     if (pressure)
     {
         *pressure = ((uint32_t)payload[2]<<16) | ((uint32_t)payload[1]<<8) | payload[0];
     }
-    
+
     return 0;
 }
 
@@ -547,7 +581,7 @@ lps22hb_sensor_read(struct sensor *sensor, sensor_type_t type,
             // bit 7 must be one to read multiple bytes
             rc = lps22hb_read_bytes(lhb, (LPS22HB_PRESS_OUT_XL | 0x80), payload, 3);
         }
-            
+
         if (rc) {
             return rc;
         }
@@ -581,7 +615,7 @@ lps22hb_sensor_read(struct sensor *sensor, sensor_type_t type,
         }
         temperature = ((int32_t)payload[1]<<8) | (int32_t)payload[0];
 
-        /* Data in C */ 
+        /* Data in C */
         databuf.std.std_temp = temperature/100.0F;
         databuf.std.std_temp_is_valid = 1;
 
@@ -591,7 +625,7 @@ lps22hb_sensor_read(struct sensor *sensor, sensor_type_t type,
             return rc;
         }
     }
-    
+
     return 0;
 }
 

@@ -55,13 +55,22 @@ struct lps22hb_cfg {
 };
 
 struct lps22hb {
+#if MYNEWT_VAL(BUS_DRIVER_PRESENT)
+    struct bus_i2c_node i2c_node;
+#else
     struct os_dev dev;
-    struct sensor sensor;
     struct os_mutex *i2c_mutex;
+#endif
+    struct sensor sensor;
     struct lps22hb_cfg cfg;
     os_time_t last_read_time;
 };
 
+#if MYNEWT_VAL(BUS_DRIVER_PRESENT)
+int lps22hb_create_i2c_sensor_dev(struct bus_i2c_node *node, const char *name,
+                              const struct bus_i2c_node_cfg *i2c_cfg,
+                              struct sensor_itf *sensor_itf);
+#endif
 int lps22hb_reset(struct lps22hb *dev);
 int lps22hb_sleep(struct lps22hb *dev);
 int lps22hb_set_lpf(struct lps22hb *dev, enum lps22hb_lpf_config cfg);
