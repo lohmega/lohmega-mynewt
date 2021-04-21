@@ -33,9 +33,9 @@ enum lps22hb_output_rate {
     LPS22HB_OUTPUT_RATE_ONESHOT = 0x00 << 4,
     LPS22HB_OUTPUT_RATE_1       = 0x01 << 4,
     LPS22HB_OUTPUT_RATE_10      = 0x02 << 4,
-    LPS22HB_OUTPUT_RATE_25      = 0x03 << 4, 
-    LPS22HB_OUTPUT_RATE_50      = 0x04 << 4, 
-    LPS22HB_OUTPUT_RATE_75      = 0x05 << 4, 
+    LPS22HB_OUTPUT_RATE_25      = 0x03 << 4,
+    LPS22HB_OUTPUT_RATE_50      = 0x04 << 4,
+    LPS22HB_OUTPUT_RATE_75      = 0x05 << 4,
 };
 
 enum lps22hb_lpf_config {
@@ -43,10 +43,10 @@ enum lps22hb_lpf_config {
     LPS22HB_LPF_CONFIG_ODR_9    = 0x10 << 2,
     LPS22HB_LPF_CONFIG_ODR_20   = 0x11 << 2,
 };
-    
+
 #define LPS22HB_WHO_AM_I_VAL  0b10110001
 #define LPS22HB_WHO_AM_I_MASK 0b11111101
-    
+
 struct lps22hb_cfg {
     enum lps22hb_output_rate output_rate;
     enum lps22hb_lpf_config lpf_cfg;
@@ -83,9 +83,6 @@ int lps22hb_enable_interrupt(struct lps22hb *dev, uint8_t enable);
 int lps22hb_init(struct os_dev *, void *);
 int lps22hb_config(struct lps22hb *, struct lps22hb_cfg *);
 
-int lps22hb_read_raw(struct lps22hb *dev, uint32_t *pressure);
-
-    
 #ifdef __cplusplus
 }
 #endif
