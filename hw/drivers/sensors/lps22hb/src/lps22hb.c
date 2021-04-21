@@ -276,6 +276,23 @@ exit:
     return rc;
 }
 
+static int 
+lps22hb_update_byte(struct lps22hb *dev, uint8_t reg_addr, uint8_t mask,
+        uint8_t value)
+{
+
+    int rc;
+    uint8_t reg = 0;
+    rc = lps22hb_read8(dev, reg_addr, &reg);
+    if (rc) {
+        return rc;
+    }
+    reg &= ~mask;
+    reg |= (uint8_t)value & mask;
+    return lps22hb_write8(dev, reg_addr, reg);
+}
+
+
 int
 lps22hb_reset(struct lps22hb *dev)
 {
@@ -300,8 +317,30 @@ lps22hb_set_output_rate(struct lps22hb *dev, enum lps22hb_output_rate rate)
     if (rc) {
         return rc;
     }
+#if 1
+    if (rate != LPS22HB_OUTPUT_RATE_ONESHOT) {
 
-    reg = (reg & 0x0F) | ((uint8_t)rate);
+        reg |=  LPS22HB_CTRL_REG2_FIFO_EN_MASK;
+        rc = lps22hb_write8(dev, LPS22HB_CTRL_REG2, 0x50);
+        if (rc) {
+            return rc;
+        }
+
+        // write 0 to flush fifo
+        rc = lps22hb_write8(dev, LPS22HB_FIFO_CTRL, 0x00);
+        if (rc) {
+            return rc;
+        }
+
+        // enable fifo stream mode
+        rc = lps22hb_write8(dev, LPS22HB_FIFO_CTRL, 0x40);
+        if (rc) {
+            return rc;
+        }
+    }
+#endif
+    reg &= ~0xF;
+    reg |= (uint8_t)rate & 0xF;
     return lps22hb_write8(dev, LPS22HB_CTRL_REG1, reg);
 }
 
@@ -341,16 +380,7 @@ lps22hb_enable_interrupt(struct lps22hb *dev, uint8_t enable)
 int
 lps22hb_set_lpf(struct lps22hb *dev, enum lps22hb_lpf_config cfg)
 {
-    int rc;
-    uint8_t reg;
-
-    rc = lps22hb_read8(dev, LPS22HB_CTRL_REG1, &reg);
-    if (rc) {
-        return rc;
-    }
-
-    reg = (reg & 0x0C) | ((uint8_t)cfg);
-    return lps22hb_write8(dev, LPS22HB_CTRL_REG1, reg);
+    return lps22hb_update_byte(dev, LPS22HB_CTRL_REG1, 0x0C, cfg);
 }
 
 int
@@ -435,6 +465,10 @@ lps22hb_config(struct lps22hb *lhb, struct lps22hb_cfg *cfg)
 {
     int rc;
     uint8_t val;
+    rc = lps22hb_reset(lhb);
+    if (rc) {
+        return rc;
+    }
 
     if (cfg) {
         memcpy(&lhb->cfg, cfg, sizeof(struct lps22hb_cfg));
@@ -466,8 +500,8 @@ lps22hb_config(struct lps22hb *lhb, struct lps22hb_cfg *cfg)
         return rc;
     }
 
-    // enable block data read (bit 1 == 1)
-    rc = lps22hb_write8(lhb, LPS22HB_CTRL_REG1, 0x02);
+    // enable block data read (BDU) (bit 1 == 1)
+    rc = lps22hb_update_byte(lhb, LPS22HB_CTRL_REG1, 0x02, 0x02);
     if (rc) {
         return rc;
     }
@@ -570,18 +604,8 @@ lps22hb_sensor_read(struct sensor *sensor, sensor_type_t type,
     }
 
     if (type & SENSOR_TYPE_PRESSURE) {
-        if (lhb->cfg.output_rate == LPS22HB_OUTPUT_RATE_ONESHOT)
-        {
-            rc = lps22hb_read8(lhb, LPS22HB_PRESS_OUT_XL, payload);
-            rc = lps22hb_read8(lhb, LPS22HB_PRESS_OUT_L, payload+1);
-            rc = lps22hb_read8(lhb, LPS22HB_PRESS_OUT_H, payload+2);
-        }
-        else
-        {
-            // bit 7 must be one to read multiple bytes
-            rc = lps22hb_read_bytes(lhb, (LPS22HB_PRESS_OUT_XL | 0x80), payload, 3);
-        }
-
+        // bit 7 must be one to read multiple bytes
+        rc = lps22hb_read_bytes(lhb, (LPS22HB_PRESS_OUT_XL | 0x80), payload, 3);
         if (rc) {
             return rc;
         }
@@ -599,17 +623,8 @@ lps22hb_sensor_read(struct sensor *sensor, sensor_type_t type,
     }
 
     if (type & SENSOR_TYPE_TEMPERATURE) {
-        if (lhb->cfg.output_rate == LPS22HB_OUTPUT_RATE_ONESHOT)
-        {
-            rc = lps22hb_read8(lhb, LPS22HB_TEMP_OUT_L, payload);
-            rc = lps22hb_read8(lhb, LPS22HB_TEMP_OUT_H, payload+1);
-        }
-        else
-        {
-            // bit 7 must be one to read multiple bytes
-            rc = lps22hb_read_bytes(lhb, (LPS22HB_TEMP_OUT_L | 0x80), payload, 2);
-        }
-
+        // bit 7 must be one to read multiple bytes
+        rc = lps22hb_read_bytes(lhb, (LPS22HB_TEMP_OUT_L | 0x80), payload, 2);
         if (rc) {
             return rc;
         }

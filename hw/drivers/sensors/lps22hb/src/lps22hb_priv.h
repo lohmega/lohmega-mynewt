@@ -57,7 +57,9 @@ enum lps22hb_registers {
 #define LPS22HB_REG2_ONESHOT (1<<0)
 #define LPS22HB_REG2_RESET (1<<2)
 #define LPS22HB_REG3_DRDY (1<<2)
-    
+
+#define LPS22HB_CTRL_REG2_FIFO_EN_MASK   (uint8_t)0x40
+
 int lps22hb_write8(struct lps22hb *dev, uint8_t reg, uint32_t value);
 int lps22hb_read8(struct lps22hb *dev, uint8_t reg, uint8_t *value);
 int lps22hb_read_bytes(struct lps22hb *dev, uint8_t reg, uint8_t *buffer, uint32_t length);
