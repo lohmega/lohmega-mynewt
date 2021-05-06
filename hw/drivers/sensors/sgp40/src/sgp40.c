@@ -285,7 +285,7 @@ int sgp40_config(struct sgp40 *sgp40, const struct sgp40_cfg *cfg)
     return err;
 }
 
-
+#if MYNEWT_VAL(BUS_DRIVER_PRESENT)
 static void init_node_cb(struct bus_node *bnode, void *arg)
 {
     struct sensor_itf *itf = arg;
@@ -304,6 +304,7 @@ int sgp40_create_i2c_sensor_dev(struct bus_i2c_node *node, const char *name,
     bus_node_set_callbacks((struct os_dev *)node, &sgp40_bus_node_cbs);
     return bus_i2c_node_create(name, node, i2c_cfg, sensor_itf);
 }
+#endif
 
 int sgp40_init(struct os_dev *dev, void *arg)
 {

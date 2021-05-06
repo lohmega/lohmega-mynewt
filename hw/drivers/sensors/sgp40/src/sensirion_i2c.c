@@ -22,14 +22,21 @@
 static uint8_t g_sgp40_i2c_bus = 0;
 
 // hack to make bus driver work with sensirion's i2c abstraction
+#if MYNEWT_VAL(BUS_DRIVER_PRESENT)
 static struct sensor_itf *g_sgp40_itf = NULL;
+#endif
 
+uint8_t sgp40_get_configured_address(void);
 
 static inline uint8_t get_itf_i2c_addr(const struct sensor_itf *itf)
 {
+#if MYNEWT_VAL(BUS_DRIVER_PRESENT)
     const struct os_dev *dev = itf->si_dev;
     const struct bus_i2c_node *node = (const struct bus_i2c_node *)dev;
     return node->addr;
+#else
+    return sgp40_get_configured_address();
+#endif
 }
 
 void sensirion_i2c_init(void *sensor_itf)
@@ -38,10 +45,10 @@ void sensirion_i2c_init(void *sensor_itf)
 #if MYNEWT_VAL(BUS_DRIVER_PRESENT)
     g_sgp40_itf = (struct sensor_itf *) sensor_itf;
 #else
-    g_sgp40_i2c_bus = itf->si_num;
+    g_sgp40_i2c_bus = ((struct sensor_itf *)sensor_itf)->si_num;
     // unfortenly sgp40 address is hardcoded. verify it.
     uint8_t hardcoded_addr = sgp40_get_configured_address();
-    assert(hardcoded_addr == itf->si_addr);
+    assert(hardcoded_addr == ((struct sensor_itf *)sensor_itf)->si_addr);
 #endif
     (void) g_sgp40_i2c_bus;
 }
