@@ -29,9 +29,14 @@ extern "C" {
 struct os_mutex;
 
 struct mcp23008_io_expander_dev_cfg {
+#if MYNEWT_VAL(BUS_DRIVER_PRESENT)
+    struct bus_i2c_node_cfg i2c_node_cfg;
+#else
     uint8_t i2c_num;
     uint8_t i2c_addr;
     struct os_mutex *i2c_mutex;
+#endif
+    uint8_t inst_id;
     uint8_t irq_pin;
     uint8_t rst_pin;
     uint8_t direction;
@@ -44,6 +49,8 @@ struct mcp23008_io_expander_dev_cfg {
 
 int mcp23008_io_expander_dev_init(struct os_dev *, void *);
 int mcp23008_io_expander_cfg(struct io_expander_dev *dev);
+int mcp23008_io_expander_create_i2c_dev(struct bus_i2c_node *node, const char *name,
+                                        struct mcp23008_io_expander_dev_cfg *cfg);
 
 #ifdef __cplusplus
 }

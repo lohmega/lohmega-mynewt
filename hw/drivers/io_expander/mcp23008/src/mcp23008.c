@@ -120,15 +120,35 @@ static int mcp23008_write_out(struct io_expander_dev *dev, int pin, int val);
  * @return 0 on success, non-zero error on failure.
  */
 int
-mcp23008_write_reg(struct mcp23008_io_expander_dev_cfg *cfg, uint8_t reg, uint8_t value)
+mcp23008_write_reg(struct io_expander_dev *dev, uint8_t reg, uint8_t value)
 {
-    int rc;
+    int rc = 0;
     os_error_t err = 0;
 #ifdef Mcp23008_VERIFY_WRITES
     uint8_t readback;
 #endif
-
     uint8_t out[] = {reg, value};
+
+#if MYNEWT_VAL(BUS_DRIVER_PRESENT)
+    err = bus_node_simple_write((struct os_dev*)dev, out, 2);
+    if (err) {
+        rc = err;
+    }
+#ifdef Mcp23008_VERIFY_WRITES
+    err = bus_node_simple_write_read_transact((struct os_dev*)dev, &reg, 1, &readback, 1);
+    if (err) {
+        rc = err;
+    }
+    if (readback != value) {
+        MCP23008_ERR("Rback err: %x != %x\r\n", readback, value);
+        MCP23008_STATS_INC(write_errors);
+    }
+#endif
+
+#else  /* MYNEWT_VAL(BUS_DRIVER_PRESENT) */
+    struct mcp23008_io_expander_dev_cfg *cfg;
+    cfg = (struct mcp23008_io_expander_dev_cfg *)((struct os_dev*)dev)->od_init_arg;
+
     struct hal_i2c_master_data data_struct = {
         .address = cfg->i2c_addr,
         .len = 2,
@@ -179,14 +199,25 @@ mcp23008_write_reg(struct mcp23008_io_expander_dev_cfg *cfg, uint8_t reg, uint8_
 exit:
     err = os_mutex_release(cfg->i2c_mutex);
     assert(err == OS_OK);
+#endif  /* MYNEWT_VAL(BUS_DRIVER_PRESENT) */
+
     return rc;
 }
 
 int
-mcp23008_read_reg(struct mcp23008_io_expander_dev_cfg *cfg, uint8_t reg, uint8_t *value)
+mcp23008_read_reg(struct io_expander_dev *dev, uint8_t reg, uint8_t *value)
 {
     int rc = 0;
     os_error_t err;
+
+#if MYNEWT_VAL(BUS_DRIVER_PRESENT)
+    err = bus_node_simple_write_read_transact((struct os_dev*)dev, &reg, 1, value, 1);
+    if (err) {
+        rc = err;
+    }
+#else
+    struct mcp23008_io_expander_dev_cfg *cfg;
+    cfg = (struct mcp23008_io_expander_dev_cfg *)((struct os_dev*)dev)->od_init_arg;
 
     struct hal_i2c_master_data data_struct = {
         .address = cfg->i2c_addr,
@@ -223,6 +254,7 @@ mcp23008_read_reg(struct mcp23008_io_expander_dev_cfg *cfg, uint8_t reg, uint8_t
 exit:
     err = os_mutex_release(cfg->i2c_mutex);
     assert(err == OS_OK);
+#endif  /* MYNEWT_VAL(BUS_DRIVER_PRESENT) */
     return rc;
 }
 
@@ -233,27 +265,26 @@ mcp23008_init_in8(struct io_expander_dev *dev, uint8_t pin_mask, uint8_t pullup_
     uint8_t pin_config;
     uint8_t pu_config;
     struct mcp23008_io_expander_dev_cfg *cfg;
+    cfg = (struct mcp23008_io_expander_dev_cfg *)((struct os_dev*)dev)->od_init_arg;
 
-    cfg  = (struct mcp23008_io_expander_dev_cfg *)dev->ioexp_dev.od_init_arg;
-
-    rc = mcp23008_read_reg(cfg, MCP23008_IODIR_REG, &pin_config);
+    rc = mcp23008_read_reg(dev, MCP23008_IODIR_REG, &pin_config);
     if (rc) {
-        MCP23008_ERR("Err reading IODIR on on 0x%02X\n", cfg->i2c_addr);
+        MCP23008_ERR("Err reading IODIR on on ioexp[%d]\n", cfg->inst_id);
         return rc;
     }
 
     pin_config |= pin_mask;
     cfg->direction = pin_config;
 
-    rc = mcp23008_write_reg(cfg, MCP23008_IODIR_REG, pin_config);
+    rc = mcp23008_write_reg(dev, MCP23008_IODIR_REG, pin_config);
     if (rc) {
-        MCP23008_ERR("Failed to set in8 pins 0x%02X\n", cfg->i2c_addr);
+        MCP23008_ERR("Failed to set in8 pins ioexp[%d]\n", cfg->inst_id);
         return rc;
     }
 
-    rc = mcp23008_read_reg(cfg, MCP23008_GPPU_REG, &pu_config);
+    rc = mcp23008_read_reg(dev, MCP23008_GPPU_REG, &pu_config);
     if (rc) {
-        MCP23008_ERR("Err reading GPPU on 0x%02X\n", cfg->i2c_addr);
+        MCP23008_ERR("Err reading GPPU on ioexp[%d]\n", cfg->inst_id);
         return rc;
     }
 
@@ -276,11 +307,11 @@ mcp23008_init_out8(struct io_expander_dev *dev, uint8_t pinmask)
 {
     int rc;
     uint8_t pin_config;
+
     struct mcp23008_io_expander_dev_cfg *cfg;
+    cfg = (struct mcp23008_io_expander_dev_cfg *)((struct os_dev*)dev)->od_init_arg;
 
-    cfg = (struct mcp23008_io_expander_dev_cfg *)dev->ioexp_dev.od_init_arg;
-
-    rc = mcp23008_read_reg(cfg, MCP23008_IODIR_REG, &pin_config);
+    rc = mcp23008_read_reg(dev, MCP23008_IODIR_REG, &pin_config);
     if (rc) {
         MCP23008_ERR("Err. out8 pins 0x%02X\n");
         return rc;
@@ -289,7 +320,7 @@ mcp23008_init_out8(struct io_expander_dev *dev, uint8_t pinmask)
     pin_config &= ~(pinmask);
     cfg->direction = pin_config;
 
-    rc = mcp23008_write_reg(cfg, MCP23008_IODIR_REG, pin_config);
+    rc = mcp23008_write_reg(dev, MCP23008_IODIR_REG, pin_config);
     if (rc) {
         MCP23008_ERR("Err. out8 pins\n");
         return rc;
@@ -305,7 +336,7 @@ mcp23008_pin_dir(struct io_expander_dev *dev, int pin, int *dir)
     pinmask = (1 << pin);
 
     struct mcp23008_io_expander_dev_cfg *cfg;
-    cfg = (struct mcp23008_io_expander_dev_cfg *)dev->ioexp_dev.od_init_arg;
+    cfg = (struct mcp23008_io_expander_dev_cfg *)((struct os_dev*)dev)->od_init_arg;
 
     if (dir) {
         *dir = (pinmask & cfg->direction);
@@ -318,13 +349,10 @@ mcp23008_write_out(struct io_expander_dev *dev, int pin, int val)
 {
     int rc;
     uint8_t pin_output;
-    struct mcp23008_io_expander_dev_cfg *cfg;
 
-    cfg = (struct mcp23008_io_expander_dev_cfg *)dev->ioexp_dev.od_init_arg;
-
-    rc = mcp23008_read_reg(cfg, MCP23008_OLAT_REG, &pin_output);
+    rc = mcp23008_read_reg(dev, MCP23008_OLAT_REG, &pin_output);
     if (rc) {
-        MCP23008_ERR("Failed to write out pins 0x%02X\n", cfg->i2c_addr);
+        MCP23008_ERR("Failed to write out pins\n");
         return rc;
     }
 
@@ -334,9 +362,9 @@ mcp23008_write_out(struct io_expander_dev *dev, int pin, int val)
         pin_output &= ~(1 << pin);
     }
 
-    rc = mcp23008_write_reg(cfg, MCP23008_OLAT_REG, pin_output);
+    rc = mcp23008_write_reg(dev, MCP23008_OLAT_REG, pin_output);
     if (rc) {
-        MCP23008_ERR("Failed to write out pins 0x%02X\n", cfg->i2c_addr);
+        MCP23008_ERR("Failed to write out pins\n");
         return rc;
     }
 
@@ -348,11 +376,11 @@ mcp23008_init_out(struct io_expander_dev *dev, int pin, int val)
 {
     int rc;
     struct mcp23008_io_expander_dev_cfg *cfg;
-    cfg = (struct mcp23008_io_expander_dev_cfg *)dev->ioexp_dev.od_init_arg;
+    cfg = (struct mcp23008_io_expander_dev_cfg *)((struct os_dev*)dev)->od_init_arg;
 
     rc = mcp23008_init_out8(dev, (1 << pin));
     if (rc) {
-        MCP23008_ERR("Failed to set out pins 0x%02X\n", cfg->i2c_addr);
+        MCP23008_ERR("Failed to set out pins ioexp[%d]\n", cfg->inst_id);
         return rc;
     }
 
@@ -363,13 +391,10 @@ static int
 mcp23008_read_in8(struct io_expander_dev *dev, uint8_t *pin_input)
 {
     int rc;
-    struct mcp23008_io_expander_dev_cfg *cfg;
 
-    cfg = (struct mcp23008_io_expander_dev_cfg *)dev->ioexp_dev.od_init_arg;
-
-    rc = mcp23008_read_reg(cfg, MCP23008_GPIO_REG, pin_input);
+    rc = mcp23008_read_reg(dev, MCP23008_GPIO_REG, pin_input);
     if (rc) {
-        MCP23008_ERR("Failed to read input pins 0x%02X\n", cfg->i2c_addr);
+        MCP23008_ERR("Failed to read input pins\n");
         return rc;
     }
 
@@ -398,7 +423,6 @@ mcp23008_irq_init(struct io_expander_dev *dev, int pin,
 {
     int rc;
     uint8_t reg;
-    struct mcp23008_io_expander_dev_cfg *cfg;
     assert(pull == HAL_GPIO_PULL_NONE);
     assert(pin < IO_EXPANDER_MAX_IRQ);
 
@@ -408,11 +432,10 @@ mcp23008_irq_init(struct io_expander_dev *dev, int pin,
     irq->func = handler;
     irq->arg = arg;
 
-    cfg = (struct mcp23008_io_expander_dev_cfg *)dev->ioexp_dev.od_init_arg;
-    rc = mcp23008_read_reg(cfg, MCP23008_GPINTEN_REG, &reg);
+    rc = mcp23008_read_reg(dev, MCP23008_GPINTEN_REG, &reg);
     assert(rc == 0);
     reg |= (1 << pin);
-    rc = mcp23008_write_reg(cfg, MCP23008_GPINTEN_REG, reg);
+    rc = mcp23008_write_reg(dev, MCP23008_GPINTEN_REG, reg);
     assert(rc == 0);
 
     MCP23008_DEBUG("Intr init pin %d\n", pin);
@@ -424,7 +447,6 @@ mcp23008_irq_release(struct io_expander_dev *dev, int pin)
 {
     int rc;
     uint8_t reg;
-    struct mcp23008_io_expander_dev_cfg *cfg;
     assert(pin < IO_EXPANDER_MAX_IRQ);
 
     struct io_expander_irq * irq = &(dev->ioexp_irqs[pin]);
@@ -433,11 +455,10 @@ mcp23008_irq_release(struct io_expander_dev *dev, int pin)
     irq->func = 0;
     irq->arg = 0;
 
-    cfg = (struct mcp23008_io_expander_dev_cfg *)dev->ioexp_dev.od_init_arg;
-    rc = mcp23008_read_reg(cfg, MCP23008_GPINTEN_REG, &reg);
+    rc = mcp23008_read_reg(dev, MCP23008_GPINTEN_REG, &reg);
     assert(rc == 0);
     reg &= ~((uint8_t)1 << pin);
-    rc = mcp23008_write_reg(cfg, MCP23008_GPINTEN_REG, reg);
+    rc = mcp23008_write_reg(dev, MCP23008_GPINTEN_REG, reg);
     assert(rc == 0);
 
     return 0;
@@ -470,7 +491,7 @@ mcp23008_irq(void *arg)
     struct mcp23008_io_expander_dev_cfg *cfg;
     struct io_expander_dev *dev = (struct io_expander_dev *)arg;
     assert(arg);
-    cfg = (struct mcp23008_io_expander_dev_cfg *)dev->ioexp_dev.od_init_arg;
+    cfg = (struct mcp23008_io_expander_dev_cfg *)((struct os_dev*)dev)->od_init_arg;
     MCP23008_STATS_INC(n_irq);
 
     if (cfg->interrupt_eventq) {
@@ -491,11 +512,11 @@ mcp23008_interrupt_ev_cb(struct os_event *ev)
     struct mcp23008_io_expander_dev_cfg *cfg;
     struct io_expander_dev *dev = (struct io_expander_dev *) ev->ev_arg;
 
-    cfg  = (struct mcp23008_io_expander_dev_cfg *)dev->ioexp_dev.od_init_arg;
+    cfg = (struct mcp23008_io_expander_dev_cfg *)((struct os_dev*)dev)->od_init_arg;
     /* Read current state of pins */
     rc = mcp23008_read_in8(dev, &pin_input);
     if (rc) {
-        MCP23008_ERR("Failed to get pin values 0x%02X\n", cfg->i2c_addr);
+        MCP23008_ERR("Failed to get pin values ioexp[%d]\n", cfg->inst_id);
         return;
     }
 
@@ -557,7 +578,6 @@ mcp23008_interrupt_ev_cb(struct os_event *ev)
 int
 mcp23008_io_expander_dev_init(struct os_dev *odev, void *arg)
 {
-    int i;
     struct io_expander_dev *dev;
     struct io_expander_driver_funcs *iof;
 
@@ -580,12 +600,7 @@ mcp23008_io_expander_dev_init(struct os_dev *odev, void *arg)
     iof->iof_irq_disable = mcp23008_irq_disable;
 
     /* Clear interrupt structure */
-    for (i=0;i<IO_EXPANDER_MAX_IRQ;i++) {
-        dev->ioexp_irqs[i].trig = HAL_GPIO_TRIG_NONE;
-        dev->ioexp_irqs[i].enabled = 0;
-        dev->ioexp_irqs[i].func = 0;
-        dev->ioexp_irqs[i].arg = 0;
-    }
+    memset(dev->ioexp_irqs, 0, sizeof(dev->ioexp_irqs));
 
     return (OS_OK);
 }
@@ -595,21 +610,20 @@ mcp23008_io_expander_cfg(struct io_expander_dev *dev)
 {
     int rc;
     struct mcp23008_io_expander_dev_cfg *cfg;
-    cfg  = (struct mcp23008_io_expander_dev_cfg *)dev->ioexp_dev.od_init_arg;
+    cfg = (struct mcp23008_io_expander_dev_cfg *)((struct os_dev*)dev)->od_init_arg;
     assert(cfg != NULL);
 
 #if MYNEWT_VAL(MCP23008_STATS)
     static char *stats_name[] = {
-        "io_expander0",
-        "io_expander1",
+        "io_exp0",
+        "io_exp1",
     };
 
     /* Init stats */
-    uint8_t adr = cfg->i2c_addr & 0x7;
-    assert(adr < 2);
+    assert(cfg->inst_id < 2);
     rc = stats_init_and_reg(
         STATS_HDR(g_mcp23008_stats), STATS_SIZE_INIT_PARMS(g_mcp23008_stats,
-        STATS_SIZE_32), STATS_NAME_INIT_PARMS(mcp23008_stats), stats_name[adr]);
+        STATS_SIZE_32), STATS_NAME_INIT_PARMS(mcp23008_stats), stats_name[cfg->inst_id]);
     SYSINIT_PANIC_ASSERT(rc == 0);
 #endif
 
@@ -639,14 +653,14 @@ mcp23008_io_expander_cfg(struct io_expander_dev *dev)
 
     /* Test writing to and reading back from INTCON */
     uint8_t reg;
-    rc = mcp23008_read_reg(cfg, MCP23008_INTCON_REG, &reg);
+    rc = mcp23008_read_reg(dev, MCP23008_INTCON_REG, &reg);
     SYSINIT_PANIC_ASSERT(rc == 0);
-    rc = mcp23008_write_reg(cfg, MCP23008_INTCON_REG, 0xA5);
+    rc = mcp23008_write_reg(dev, MCP23008_INTCON_REG, 0xA5);
     SYSINIT_PANIC_ASSERT(rc == 0);
-    rc = mcp23008_read_reg(cfg, MCP23008_INTCON_REG, &reg);
+    rc = mcp23008_read_reg(dev, MCP23008_INTCON_REG, &reg);
     SYSINIT_PANIC_ASSERT(rc == 0);
     SYSINIT_PANIC_ASSERT(reg == 0xA5);
-    rc = mcp23008_write_reg(cfg, MCP23008_INTCON_REG, 0x00);
+    rc = mcp23008_write_reg(dev, MCP23008_INTCON_REG, 0x00);
     SYSINIT_PANIC_ASSERT(rc == 0);
 
     /* Pins are default input, so only outputs needs to be set */
@@ -658,3 +672,25 @@ mcp23008_io_expander_cfg(struct io_expander_dev *dev)
 
     return (OS_OK);
 }
+
+#if MYNEWT_VAL(BUS_DRIVER_PRESENT)
+static void
+mcp23008_init_node_cb(struct bus_node *bnode, void *arg)
+{
+    int err = mcp23008_io_expander_dev_init((struct os_dev *)bnode, arg);
+    assert(!err);
+}
+
+static struct bus_node_callbacks mcp23008_bus_node_cbs = {
+        .init = mcp23008_init_node_cb,
+    };
+
+int
+mcp23008_io_expander_create_i2c_dev(struct bus_i2c_node *node, const char *name,
+                                    struct mcp23008_io_expander_dev_cfg *cfg)
+{
+    bus_node_set_callbacks((struct os_dev *)node, &mcp23008_bus_node_cbs);
+    // this will call struct x_dev_init()
+    return bus_i2c_node_create(name, node, &cfg->i2c_node_cfg, cfg);
+}
+#endif

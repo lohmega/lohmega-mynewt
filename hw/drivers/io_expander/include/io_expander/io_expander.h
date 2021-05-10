@@ -23,6 +23,10 @@
 #include <os/os_dev.h>
 #include <hal/hal_gpio.h>
 
+#if MYNEWT_VAL(BUS_DRIVER_PRESENT)
+#include <bus/drivers/i2c_common.h>
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -153,8 +157,12 @@ struct io_expander_irq {
 };
 
 struct io_expander_dev {
-    struct os_dev ioexp_dev;    /* Has to be here for cast in create_dev to work*/
-    struct os_mutex ioexp_lock;
+#if MYNEWT_VAL(BUS_DRIVER_PRESENT)
+    /* TODO: Generalise to spi and i2c ?! */
+    struct bus_i2c_node i2c_node;
+#else
+    struct os_dev dev;
+#endif
     struct io_expander_driver_funcs iof_funcs;
     int number_of_pins;
     struct io_expander_irq ioexp_irqs[IO_EXPANDER_MAX_IRQ];
