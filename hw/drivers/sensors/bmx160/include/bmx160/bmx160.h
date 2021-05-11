@@ -38,6 +38,7 @@ struct bmx160_cfg {
     uint8_t gyro_range;
     uint8_t mag_mode;
     uint8_t mag_rate;
+    sensor_type_t en_mask;
 };
 
 struct bmx160 {
@@ -49,7 +50,7 @@ struct bmx160 {
     struct sensor sensor;
     struct bmx160_cfg cfg;
     uint8_t _txbuf[8];
-    uint8_t _rxbuf[16];
+    uint8_t _rxbuf[32];
     uint64_t _priv[32];
 };
 

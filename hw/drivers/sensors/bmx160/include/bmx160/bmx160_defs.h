@@ -8,8 +8,10 @@
 #define BMX160_REG_RHALL_DATA               (0x0A) // u16
 #define BMX160_REG_GYR_DATA                 (0x0C) // s16 * xyz
 #define BMX160_REG_ACC_DATA                 (0x12) // s16 * xyz
+#define BMX160_REG_SENSOR_TIME              (0x18) // 24bit counter
 #define BMX160_REG_STATUS                   (0x1B)
 #define BMX160_REG_INT_STATUS               (0x1C)
+#define BMX160_REG_TEMP_DATA                (0x20) // s16
 #define BMX160_REG_FIFO_LENGTH              (0x22)
 #define BMX160_REG_FIFO_DATA                (0x24)
 #define BMX160_REG_ACC_CONF                 (0x40)

@@ -370,20 +370,13 @@ static int bmm150_reg_read_trim(struct bmx160 *bmx160, struct bmm150_trim_regs *
     return 0;
 }
 
-static int bmx160_fetch_mag(struct bmx160 *bmx160, struct sensor_mag_data *smd)
+static int
+bmx160_calc_mag(struct bmx160 *bmx160, uint8_t *buf, struct sensor_mag_data *smd)
 {
-    int err;
-
-    struct bmx160_priv *priv = bmx160_get_priv(bmx160);
-    uint8_t *buf = bmx160->_rxbuf;
-
-    unsigned int size = sizeof(uint16_t) * 4;
-    err = bmx160_reg_read(bmx160, BMX160_REG_MAG_DATA, buf, size);
-    if (err)
-        return err;
-
     int16_t raw_x, raw_y, raw_z;
     uint16_t rhall = 0;
+    struct bmx160_priv *priv = bmx160_get_priv(bmx160);
+
     /* Reg manipulations taken from bmm150_read_mag_data */
     /* X (b[0] & 0xF8) >> 3 | (b[1] << 5) */
     raw_x = BMM150_GET_BITS(buf[0], BMM150_DATA_X) | (((int16_t)((int8_t)buf[1])) *32);
@@ -430,19 +423,40 @@ bmx160_sd_read(struct sensor *sensor,
                    uint32_t timeout)
 {
     int err;
+    const sensor_type_t sensors_acc_gyr = SENSOR_TYPE_ACCELEROMETER|SENSOR_TYPE_GYROSCOPE;
+    const sensor_type_t sensors_all_mot = sensors_acc_gyr | SENSOR_TYPE_MAGNETIC_FIELD;
+    const sensor_type_t sensors_all = sensors_all_mot | SENSOR_TYPE_TEMPERATURE;
     uint8_t status = 0;
+    bool rxbuf_preloaded = false;
     struct bmx160 *bmx160 = (struct bmx160 *)SENSOR_GET_DEVICE(sensor);
+    if ((sensor_type & sensors_all) == 0) {
+        err = SYS_EINVAL;
+        return err;
+    }
 
+    /* Read the status register first as reading the sensor data
+     * clears the corresponding bits in the status reg */
     err = bmx160_reg_read(bmx160, BMX160_REG_STATUS, &status, 1);
     if (err) {
         return err;
     }
 
-    if ((sensor_type & (SENSOR_TYPE_ACCELEROMETER|
-                        SENSOR_TYPE_GYROSCOPE|
-                        SENSOR_TYPE_MAGNETIC_FIELD)) == 0) {
-        err = SYS_EINVAL;
-        return err;
+    if ((sensor_type & sensors_all_mot) == sensors_all_mot) {
+        /* Read all sensors in a single read */
+        err = bmx160_reg_read(bmx160, BMX160_REG_MAG_DATA, bmx160->_rxbuf, 20);
+        if (err) {
+            return err;
+        }
+        rxbuf_preloaded = true;
+    } else if ((sensor_type & sensors_acc_gyr) == sensors_acc_gyr) {
+        /* Read acc and gyro sensors in a single read */
+        err = bmx160_reg_read(bmx160, BMX160_REG_GYR_DATA,
+                              bmx160->_rxbuf + (BMX160_REG_GYR_DATA - BMX160_REG_MAG_DATA),
+                              12);
+        if (err) {
+            return err;
+        }
+        rxbuf_preloaded = true;
     }
 
     if (sensor_type & SENSOR_TYPE_ACCELEROMETER) {
@@ -451,9 +465,14 @@ bmx160_sd_read(struct sensor *sensor,
             return SYS_EBUSY;
 
         uint8_t *tmp = bmx160->_rxbuf;
-        err = bmx160_reg_read(bmx160, BMX160_REG_ACC_DATA, tmp, 6);
-        if (err)
-            return err;
+        if (rxbuf_preloaded) {
+            tmp = &bmx160->_rxbuf[BMX160_REG_ACC_DATA - BMX160_REG_MAG_DATA];
+        } else {
+            err = bmx160_reg_read(bmx160, BMX160_REG_ACC_DATA, tmp, 6);
+            if (err) {
+                return err;
+            }
+        }
 
         struct sensor_accel_data sad = {
             .sad_x_is_valid = 1,
@@ -486,11 +505,18 @@ bmx160_sd_read(struct sensor *sensor,
         if (!(status & BMX160_STATUS_DRDY_GYR))
             return SYS_EBUSY;
 
-
-        uint8_t *tmp = bmx160->_rxbuf;
-        err = bmx160_reg_read(bmx160, BMX160_REG_GYR_DATA, tmp, 6);
         if (err)
             return err;
+        uint8_t *tmp = bmx160->_rxbuf;
+        if (rxbuf_preloaded) {
+            tmp = &bmx160->_rxbuf[BMX160_REG_GYR_DATA - BMX160_REG_MAG_DATA];
+        } else {
+            err = bmx160_reg_read(bmx160, BMX160_REG_GYR_DATA, tmp, 6);
+            if (err) {
+                return err;
+            }
+        }
+
         struct sensor_gyro_data sgd = {
             .sgd_x_is_valid = 1,
             .sgd_y_is_valid = 1,
@@ -527,9 +553,19 @@ bmx160_sd_read(struct sensor *sensor,
             return SYS_EBUSY;
 
         struct sensor_mag_data smd = { 0 };
-        err = bmx160_fetch_mag(bmx160, &smd);
-        if (err)
+
+        uint8_t *tmp = bmx160->_rxbuf;
+        if (!rxbuf_preloaded) {
+            err = bmx160_reg_read(bmx160, BMX160_REG_MAG_DATA, tmp, sizeof(uint16_t) * 4);
+            if (err) {
+                return err;
+            }
+        }
+
+        err = bmx160_calc_mag(bmx160, tmp, &smd);
+        if (err) {
             return err;
+        }
 
         err = cb_func(sensor, cb_arg, &smd, SENSOR_TYPE_MAGNETIC_FIELD);
         if (err)
@@ -537,7 +573,18 @@ bmx160_sd_read(struct sensor *sensor,
     }
 
     if (sensor_type & SENSOR_TYPE_TEMPERATURE) {
-        return SYS_EINVAL; // TODO
+        struct sensor_temp_data std = {0};
+        int16_t val = 0;
+        uint8_t *tmp = bmx160->_rxbuf;
+        err = bmx160_reg_read(bmx160, BMX160_REG_TEMP_DATA, tmp, sizeof(uint16_t));
+        if (err) {
+            return err;
+        }
+        unpack_s16(tmp, &val);
+        std.std_temp = 23.0f + val * (1.0f/512.0f);
+        err = cb_func(sensor, cb_arg, &std, SENSOR_TYPE_TEMPERATURE);
+        if (err)
+            return err;
     }
     return 0;
 }
@@ -720,13 +767,6 @@ int bmx160_config(struct bmx160 *bmx160, const struct bmx160_cfg *cfg)
     (void) bmx160_sd_set_config;
     int err = 0;
 
-    // TODO en_mask from config
-    sensor_type_t en_mask = (0
-        | SENSOR_TYPE_ACCELEROMETER
-        | SENSOR_TYPE_GYROSCOPE
-        | SENSOR_TYPE_MAGNETIC_FIELD
-    );
-
     struct sensor *sensor = &bmx160->sensor;
 
     uint8_t cmd_val = BMX160_CMD_SOFTRESET;
@@ -739,17 +779,17 @@ int bmx160_config(struct bmx160 *bmx160, const struct bmx160_cfg *cfg)
     assert(!err);
     assert(chip_id == 0xD8);
 
-    if (en_mask & SENSOR_TYPE_ACCELEROMETER) {
+    if (cfg->en_mask & SENSOR_TYPE_ACCELEROMETER) {
         err = bmx160_config_acc(bmx160, cfg);
         assert(!err);
     }
 
-    if (en_mask & SENSOR_TYPE_GYROSCOPE) {
+    if (cfg->en_mask & SENSOR_TYPE_GYROSCOPE) {
         err = bmx160_config_gyr(bmx160, cfg);
         assert(!err);
     }
 
-    if (en_mask & SENSOR_TYPE_MAGNETIC_FIELD) {
+    if (cfg->en_mask & SENSOR_TYPE_MAGNETIC_FIELD) {
         err = bmx160_config_mag(bmx160, cfg);
         assert(!err);
     }
@@ -768,7 +808,7 @@ int bmx160_config(struct bmx160 *bmx160, const struct bmx160_cfg *cfg)
         }
     }
 
-    err = sensor_set_type_mask(sensor, en_mask);
+    err = sensor_set_type_mask(sensor, cfg->en_mask);
     assert(!err);
 
     memcpy(&bmx160->cfg, cfg, sizeof(bmx160->cfg));
@@ -853,7 +893,8 @@ int bmx160_init(struct os_dev *dev, void *arg)
     err = sensor_set_driver(sensor,
             (SENSOR_TYPE_GYROSCOPE |
             SENSOR_TYPE_MAGNETIC_FIELD |
-            SENSOR_TYPE_ACCELEROMETER),
+            SENSOR_TYPE_ACCELEROMETER |
+            SENSOR_TYPE_TEMPERATURE),
             &bmx160_sensor_driver);
     assert(!err);
 
