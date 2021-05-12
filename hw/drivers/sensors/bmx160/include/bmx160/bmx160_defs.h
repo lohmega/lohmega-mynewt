@@ -19,7 +19,7 @@
 #define BMX160_REG_GYR_CONF                 (0x42)
 #define BMX160_REG_GYR_RANGE                (0x43)
 #define BMX160_REG_MAG_CONF                 (0x44)
-#define BMX160_REG_FIFO_DOWN                (0x45)
+#define BMX160_REG_FIFO_DOWNS               (0x45)
 #define BMX160_REG_FIFO_CONF_0              (0x46)
 #define BMX160_REG_FIFO_CONF_1              (0x47)
 #define BMX160_REG_MAG_IF_0_CFG             (0x4C) // MAG_IF_0
@@ -74,6 +74,41 @@
 #define BMX160_STATUS_MAG_MAN_OP       (1 << 2)
 #define BMX160_STATUS_GYR_SELF_TEST_OK (1 << 1)
 
+#define BMX160_FIFO_CONF_1_TIME_EN     (1 << 1)
+#define BMX160_FIFO_CONF_1_TAG_INT2_EN (1 << 2)
+#define BMX160_FIFO_CONF_1_TAG_INT1_EN (1 << 3)
+#define BMX160_FIFO_CONF_1_HEADER_EN   (1 << 4)
+#define BMX160_FIFO_CONF_1_MAG_EN      (1 << 5)
+#define BMX160_FIFO_CONF_1_ACC_EN      (1 << 6)
+#define BMX160_FIFO_CONF_1_GYR_EN      (1 << 7)
+
+#define BMX160_INT_ENABLE_0_D_TAP      (1 << 4)
+#define BMX160_INT_ENABLE_0_S_TAP      (1 << 5)
+#define BMX160_INT_ENABLE_0_ORI        (1 << 6)
+#define BMX160_INT_ENABLE_0_FLAT       (1 << 7)
+
+#define BMX160_INT_ENABLE_1_HIGH_X     (1 << 0)
+#define BMX160_INT_ENABLE_1_HIGH_Y     (1 << 1)
+#define BMX160_INT_ENABLE_1_HIGH_Z     (1 << 2)
+#define BMX160_INT_ENABLE_1_LOW        (1 << 3)
+#define BMX160_INT_ENABLE_1_DRDY       (1 << 4)
+#define BMX160_INT_ENABLE_1_FFULL      (1 << 5)
+#define BMX160_INT_ENABLE_1_FWM        (1 << 6)
+
+#define BMX160_INT_OUT_CTRL_INT1_LVL   (1 << 1)  /* 1 = active high */
+#define BMX160_INT_OUT_CTRL_INT1_OD    (1 << 2)  /* 0 = push-pull, 1 = open drain */
+#define BMX160_INT_OUT_CTRL_INT1_OEN   (1 << 3)  /* output enable */
+#define BMX160_INT_OUT_CTRL_INT2_LVL   (1 << 5)  /* 1 = active high */
+#define BMX160_INT_OUT_CTRL_INT2_OD    (1 << 6)  /* 0 = push-pull, 1 = open drain */
+#define BMX160_INT_OUT_CTRL_INT2_OEN   (1 << 7)  /* output enable */
+
+#define BMX160_INT_MAP_1_INT1_DRDY     (1 << 7)
+#define BMX160_INT_MAP_1_INT1_FWM      (1 << 6)
+#define BMX160_INT_MAP_1_INT1_FFULL    (1 << 5)
+#define BMX160_INT_MAP_1_INT1_PMU      (1 << 4)
+
+#define BMX160_INT_STATUS_1_FWM        (1 << 6)
+#define BMX160_INT_STATUS_1_FFULL      (1 << 5)
 
 /* Accel Output data rate */
 #define BMX160_ACC_CONF_ODR_0_78HZ              (0x01)

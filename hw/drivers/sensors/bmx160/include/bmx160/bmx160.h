@@ -38,6 +38,13 @@ struct bmx160_cfg {
     uint8_t gyro_range;
     uint8_t mag_mode;
     uint8_t mag_rate;
+
+    uint8_t int1_pin;
+    uint8_t int2_pin;
+
+    uint8_t fifo_enable;
+    uint8_t fifo_water_level;   /* In units of 4 bytes */
+
     sensor_type_t en_mask;
 };
 
@@ -49,8 +56,12 @@ struct bmx160 {
 #endif
     struct sensor sensor;
     struct bmx160_cfg cfg;
+    uint32_t int1_ct;
+    uint32_t int2_ct;
+
+    uint32_t fifo_tbase;
     uint8_t _txbuf[8];
-    uint8_t _rxbuf[32];
+    uint8_t _rxbuf[64];
     uint64_t _priv[32];
 };
 

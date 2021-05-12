@@ -19,6 +19,7 @@
 #include "defs/error.h"
 #include "os/os.h"
 #include "sysinit/sysinit.h"
+#include "hal/hal_gpio.h"
 #include "hal/hal_i2c.h"
 #include "i2cn/i2cn.h"
 
@@ -371,6 +372,63 @@ static int bmm150_reg_read_trim(struct bmx160 *bmx160, struct bmm150_trim_regs *
 }
 
 static int
+bmx160_calc_acc(struct bmx160 *bmx160, uint8_t *buf, struct sensor_accel_data *sad)
+{
+    float tounit = BMX160_SI_UNIT_FACT_ACC_2G;
+
+    sad->sad_x_is_valid = 1;
+    sad->sad_y_is_valid = 1;
+    sad->sad_z_is_valid = 1;
+
+    switch (bmx160->cfg.acc_range) {
+        case BMX160_ACC_RANGE_2G:
+            break;
+        case BMX160_ACC_RANGE_4G:
+            tounit = BMX160_SI_UNIT_FACT_ACC_2G * 2;
+            break;
+        case BMX160_ACC_RANGE_8G:
+            tounit = BMX160_SI_UNIT_FACT_ACC_2G * 4;
+            break;
+        case BMX160_ACC_RANGE_16G:
+            tounit = BMX160_SI_UNIT_FACT_ACC_2G * 8;
+            break;
+    }
+    bmx160_unpack_s16xyz(buf, &sad->sad_x, &sad->sad_y, &sad->sad_z, tounit);
+
+    return 0;
+}
+
+static int
+bmx160_calc_gyr(struct bmx160 *bmx160, uint8_t *buf, struct sensor_gyro_data *sgd)
+{
+    float tounit = BMX160_SI_UNIT_FACT_GYR_2000DPS;
+
+    sgd->sgd_x_is_valid = 1;
+    sgd->sgd_y_is_valid = 1;
+    sgd->sgd_z_is_valid = 1;
+
+    switch (bmx160->cfg.gyro_range) {
+        case BMX160_GYR_RANGE_2000_DPS:
+            break;
+        case BMX160_GYR_RANGE_1000_DPS:
+            tounit = BMX160_SI_UNIT_FACT_GYR_2000DPS / 2;
+            break;
+        case BMX160_GYR_RANGE_500_DPS:
+            tounit = BMX160_SI_UNIT_FACT_GYR_2000DPS / 4;
+            break;
+        case BMX160_GYR_RANGE_250_DPS:
+            tounit = BMX160_SI_UNIT_FACT_GYR_2000DPS / 8;
+            break;
+        case BMX160_GYR_RANGE_125_DPS:
+            tounit = BMX160_SI_UNIT_FACT_GYR_2000DPS / 16;
+            break;
+    }
+    bmx160_unpack_s16xyz(buf, &sgd->sgd_x, &sgd->sgd_y, &sgd->sgd_z, tounit);
+
+    return 0;
+}
+
+static int
 bmx160_calc_mag(struct bmx160 *bmx160, uint8_t *buf, struct sensor_mag_data *smd)
 {
     int16_t raw_x, raw_y, raw_z;
@@ -460,6 +518,7 @@ bmx160_sd_read(struct sensor *sensor,
     }
 
     if (sensor_type & SENSOR_TYPE_ACCELEROMETER) {
+        struct sensor_accel_data sad;
 
         if (!(status & BMX160_STATUS_DRDY_ACC))
             return SYS_EBUSY;
@@ -474,26 +533,7 @@ bmx160_sd_read(struct sensor *sensor,
             }
         }
 
-        struct sensor_accel_data sad = {
-            .sad_x_is_valid = 1,
-            .sad_y_is_valid = 1,
-            .sad_z_is_valid = 1
-        };
-        float tounit = BMX160_SI_UNIT_FACT_ACC_2G;
-        switch (bmx160->cfg.acc_range) {
-            case BMX160_ACC_RANGE_2G:
-                break;
-            case BMX160_ACC_RANGE_4G:
-                tounit = BMX160_SI_UNIT_FACT_ACC_2G * 2;
-                break;
-            case BMX160_ACC_RANGE_8G:
-                tounit = BMX160_SI_UNIT_FACT_ACC_2G * 4;
-                break;
-            case BMX160_ACC_RANGE_16G:
-                tounit = BMX160_SI_UNIT_FACT_ACC_2G * 8;
-                break;
-        }
-        bmx160_unpack_s16xyz(tmp, &sad.sad_x, &sad.sad_y, &sad.sad_z, tounit);
+        bmx160_calc_acc(bmx160, tmp, &sad);
 
         err = cb_func(sensor, cb_arg, &sad, SENSOR_TYPE_ACCELEROMETER);
         if (err)
@@ -501,6 +541,7 @@ bmx160_sd_read(struct sensor *sensor,
     }
 
     if (sensor_type & SENSOR_TYPE_GYROSCOPE) {
+        struct sensor_gyro_data sgd;
 
         if (!(status & BMX160_STATUS_DRDY_GYR))
             return SYS_EBUSY;
@@ -517,30 +558,7 @@ bmx160_sd_read(struct sensor *sensor,
             }
         }
 
-        struct sensor_gyro_data sgd = {
-            .sgd_x_is_valid = 1,
-            .sgd_y_is_valid = 1,
-            .sgd_z_is_valid = 1
-        };
-
-        float tounit = BMX160_SI_UNIT_FACT_GYR_2000DPS;
-        switch (bmx160->cfg.gyro_range) {
-            case BMX160_GYR_RANGE_2000_DPS:
-                break;
-            case BMX160_GYR_RANGE_1000_DPS:
-                tounit = BMX160_SI_UNIT_FACT_GYR_2000DPS / 2;
-                break;
-            case BMX160_GYR_RANGE_500_DPS:
-                tounit = BMX160_SI_UNIT_FACT_GYR_2000DPS / 4;
-                break;
-            case BMX160_GYR_RANGE_250_DPS:
-                tounit = BMX160_SI_UNIT_FACT_GYR_2000DPS / 8;
-                break;
-            case BMX160_GYR_RANGE_125_DPS:
-                tounit = BMX160_SI_UNIT_FACT_GYR_2000DPS / 16;
-                break;
-        }
-        bmx160_unpack_s16xyz(tmp, &sgd.sgd_x, &sgd.sgd_y, &sgd.sgd_z, tounit);
+        bmx160_calc_gyr(bmx160, tmp, &sgd);
 
         err = cb_func(sensor, cb_arg, &sgd, SENSOR_TYPE_GYROSCOPE);
         if (err)
@@ -613,6 +631,111 @@ static int bmx160_sd_get_config(struct sensor * sensor,
     return 0;
 }
 
+static void
+call_listener_cbs(struct sensor *sensor, sensor_type_t type, void *data)
+{
+    struct sensor_listener *listener;
+
+    SLIST_FOREACH(listener, &sensor->s_listener_list, sl_next) {
+        if (listener->sl_sensor_type & type) {
+            listener->sl_func(sensor, listener->sl_arg, data, type);
+        }
+    }
+}
+
+static int
+interpret_fifo(struct bmx160 *bmx160, struct sensor *sensor, uint8_t *buf, int buf_len)
+{
+    int off = 0;
+    uint8_t *tmp;
+    const uint8_t overread_val[] = {0x80,0x80,0x80,0x80,0x80,0x80};
+    struct sensor_accel_data sad;
+    struct sensor_gyro_data sgd;
+    struct sensor_mag_data smd;
+
+    while ((off + 19) < buf_len) {
+        tmp = buf + off;
+
+        if (!memcmp(tmp, overread_val, sizeof(overread_val))) {
+            printf("%s:%d: fifo_or\n", __func__, __LINE__);
+        }
+
+        /* Todo check for partial fifo downloads */
+        if (!bmx160_calc_acc(bmx160, &tmp[BMX160_REG_ACC_DATA - BMX160_REG_MAG_DATA], &sad)) {
+            call_listener_cbs(sensor, SENSOR_TYPE_ACCELEROMETER, &sad);
+        }
+        if (!bmx160_calc_gyr(bmx160, &tmp[BMX160_REG_GYR_DATA - BMX160_REG_MAG_DATA], &sgd)) {
+            call_listener_cbs(sensor, SENSOR_TYPE_GYROSCOPE, &sgd);
+        }
+        if (!bmx160_calc_mag(bmx160, &tmp[BMX160_REG_MAG_DATA - BMX160_REG_MAG_DATA], &smd)) {
+            call_listener_cbs(sensor, SENSOR_TYPE_MAGNETIC_FIELD, &smd);
+        }
+        off += 20;
+        sensor->s_sts.st_cputime += os_cputime_usecs_to_ticks(bmx160->fifo_tbase);
+    }
+    return 0;
+}
+
+/**
+ * Manage events from sensor
+ *
+ * @param sensor The sensor object
+ *
+ * @return 0 on success, non-zero error on failure.
+ */
+static int
+bmx160_sd_handle_interrupt(struct sensor *sensor)
+{
+    struct bmx160 *bmx160;
+    int err;
+    uint16_t fifo_length;
+
+    err = sensor_lock(sensor);
+    if (err != 0) {
+        return err;
+    }
+    bmx160 = (struct bmx160 *)SENSOR_GET_DEVICE(sensor);
+
+    /* Interrupt status */
+    err = bmx160_reg_read(bmx160, BMX160_REG_INT_STATUS, bmx160->_rxbuf, 2);
+    if (!(bmx160->_rxbuf[1] & (BMX160_INT_STATUS_1_FWM|BMX160_INT_STATUS_1_FFULL))) {
+        return 0;
+    }
+
+    /* Fifo length */
+    err = bmx160_reg_read(bmx160, BMX160_REG_FIFO_LENGTH, bmx160->_rxbuf, 2);
+    unpack_u16(bmx160->_rxbuf, &fifo_length);
+
+    /* FIFO overflow - throw away and restart fifo */
+    if (fifo_length > 999) {
+        uint8_t val = BMX160_CMD_FIFO_FLUSH;
+        err = bmx160_reg_write(bmx160, BMX160_REG_CMD, &val, 1);
+        assert(!err);
+        return 0;
+    }
+
+    /* Calculate timestamp of first sample in fifo, note that the interrupt was given at
+     * the time the watermark was crossed. */
+    int64_t ts_offset = (bmx160->cfg.fifo_water_level*4/20)*bmx160->fifo_tbase;
+    sensor->s_sts.st_cputime = bmx160->int1_ct - os_cputime_usecs_to_ticks(ts_offset);
+
+    while (fifo_length > 16) {
+        int to_read = fifo_length;
+        to_read = (to_read < sizeof(bmx160->_rxbuf)) ? to_read : sizeof(bmx160->_rxbuf);
+        err = bmx160_reg_read(bmx160, BMX160_REG_FIFO_DATA, bmx160->_rxbuf, to_read);
+        if (err) {
+            break;
+        }
+
+        interpret_fifo(bmx160, sensor, bmx160->_rxbuf, to_read);
+
+        err = bmx160_reg_read(bmx160, BMX160_REG_FIFO_LENGTH, bmx160->_rxbuf, 2);
+        unpack_u16(bmx160->_rxbuf, &fifo_length);
+    }
+
+    sensor_unlock(sensor);
+    return err;
+}
 
 static struct sensor_driver bmx160_sensor_driver = {
     .sd_read               = bmx160_sd_read,
@@ -621,7 +744,7 @@ static struct sensor_driver bmx160_sensor_driver = {
     //.sd_set_trigger_thresh = bmx160_sd_set_trigger_thresh,
     //.sd_set_notification   = bmx160_sd_set_notification,
     //.sd_unset_notification = bmx160_sd_unset_notification,
-    //.sd_handle_interrupt   = bmx160_sd_handle_interrupt,
+    .sd_handle_interrupt   = bmx160_sd_handle_interrupt,
 };
 
 
@@ -762,7 +885,59 @@ static int bmx160_config_mag(struct bmx160 *bmx160, const struct bmx160_cfg *cfg
 
 }
 
-int bmx160_config(struct bmx160 *bmx160, const struct bmx160_cfg *cfg)
+static void
+bmx160_irq1(void *arg)
+{
+    struct sensor *sensor = arg;
+    struct bmx160 *bmx160;
+    bmx160 = (struct bmx160 *)SENSOR_GET_DEVICE(sensor);
+    bmx160->int1_ct = os_cputime_get32();
+
+    sensor_mgr_put_interrupt_evt(sensor);
+}
+
+static int
+bmx160_config_fifo(struct bmx160 *bmx160, const struct bmx160_cfg *cfg)
+{
+    int err;
+    struct bmx160_regval regs[] = {
+        {BMX160_REG_CMD, BMX160_CMD_INT_RESET},
+        {BMX160_REG_INT_OUT_CTRL, (BMX160_INT_OUT_CTRL_INT1_OEN|BMX160_INT_OUT_CTRL_INT1_LVL)},
+        {BMX160_REG_INT_MAP_1, (BMX160_INT_MAP_1_INT1_FWM)},
+        {BMX160_REG_INT_ENABLE_1, BMX160_INT_ENABLE_1_FWM},
+        {BMX160_REG_INT_LATCH, 0x0F},
+        {BMX160_REG_FIFO_DOWNS, 0},
+        {BMX160_REG_FIFO_CONF_0, 0},
+        {BMX160_REG_FIFO_CONF_1, 0},
+        {BMX160_REG_CMD, BMX160_CMD_FIFO_FLUSH}
+    };
+    regs[6].reg_val = cfg->fifo_water_level; /* FIFO_CONF_0 */
+    regs[7].reg_val = cfg->fifo_enable;      /* FIFO_CONF_1 */
+
+    /* Calculate tbase from ODR */
+    bmx160->fifo_tbase = 10000;
+#if 1
+    switch (cfg->acc_rate & 0xf) {
+        case (BMX160_ACC_CONF_ODR_25HZ):  bmx160->fifo_tbase = 40000;break;
+        case (BMX160_ACC_CONF_ODR_50HZ):  bmx160->fifo_tbase = 20000;break;
+        case (BMX160_ACC_CONF_ODR_100HZ): bmx160->fifo_tbase = 10000;break;
+        case (BMX160_ACC_CONF_ODR_200HZ): bmx160->fifo_tbase = 5000;break;
+        default:
+            assert(0);
+    }
+#endif
+
+    assert((cfg->acc_rate&0xf) == (cfg->gyro_rate&0xf));
+    for (int i = 0; i < ARRAY_SIZE(regs); i++) {
+        err = bmx160_reg_write(bmx160, regs[i].reg_addr, &regs[i].reg_val, 1);
+        assert(!err);
+    }
+    return 0;
+}
+
+
+int
+bmx160_config(struct bmx160 *bmx160, const struct bmx160_cfg *cfg)
 {
     (void) bmx160_sd_set_config;
     int err = 0;
@@ -794,6 +969,12 @@ int bmx160_config(struct bmx160 *bmx160, const struct bmx160_cfg *cfg)
         assert(!err);
     }
 
+    if (cfg->fifo_enable) {
+        err = bmx160_config_fifo(bmx160, cfg);
+        assert(!err);
+        sensor->s_sts.st_cputime = os_cputime_get32();
+    }
+
     // note: manual says err_reg should not be used for success verification
     if (BMX160_DEBUG_ENABLE) {
         /* in bosch driver bmi160 driver, err_reg bit mask is in practice 0b00000111 (0x7),
@@ -812,6 +993,12 @@ int bmx160_config(struct bmx160 *bmx160, const struct bmx160_cfg *cfg)
     assert(!err);
 
     memcpy(&bmx160->cfg, cfg, sizeof(bmx160->cfg));
+
+    /* Interrupt */
+    hal_gpio_irq_init(cfg->int1_pin, bmx160_irq1, &bmx160->sensor,
+                      HAL_GPIO_TRIG_RISING, HAL_GPIO_PULL_NONE);
+    hal_gpio_irq_enable(cfg->int1_pin);
+
     return 0;
 }
 
