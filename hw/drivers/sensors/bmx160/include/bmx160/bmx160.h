@@ -41,6 +41,8 @@ struct bmx160_cfg {
 
     uint8_t int1_pin;
     uint8_t int2_pin;
+    uint8_t int1_map;
+    uint8_t int2_map;
 
     uint8_t fifo_enable;
     uint8_t fifo_water_level;   /* In units of 4 bytes */

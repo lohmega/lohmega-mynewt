@@ -911,12 +911,13 @@ bmx160_config_fifo(struct bmx160 *bmx160, const struct bmx160_cfg *cfg)
         {BMX160_REG_FIFO_CONF_1, 0},
         {BMX160_REG_CMD, BMX160_CMD_FIFO_FLUSH}
     };
+    /* TODO: Separate fifo and interrupt handling */
+    regs[2].reg_val = cfg->int1_map; /* INT_MAP_1 */
     regs[6].reg_val = cfg->fifo_water_level; /* FIFO_CONF_0 */
     regs[7].reg_val = cfg->fifo_enable;      /* FIFO_CONF_1 */
 
     /* Calculate tbase from ODR */
     bmx160->fifo_tbase = 10000;
-#if 1
     switch (cfg->acc_rate & 0xf) {
         case (BMX160_ACC_CONF_ODR_25HZ):  bmx160->fifo_tbase = 40000;break;
         case (BMX160_ACC_CONF_ODR_50HZ):  bmx160->fifo_tbase = 20000;break;
@@ -925,7 +926,6 @@ bmx160_config_fifo(struct bmx160 *bmx160, const struct bmx160_cfg *cfg)
         default:
             assert(0);
     }
-#endif
 
     assert((cfg->acc_rate&0xf) == (cfg->gyro_rate&0xf));
     for (int i = 0; i < ARRAY_SIZE(regs); i++) {
