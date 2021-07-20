@@ -76,6 +76,8 @@ int bmx160_create_i2c_sensor_dev(struct bus_i2c_node *node, const char *name,
 int bmx160_init(struct os_dev *dev, void *arg);
 int bmx160_config(struct bmx160 *bmx160, const struct bmx160_cfg *cfg);
 
+int bmx160_reg_read(struct bmx160 *bmx160, uint8_t addr, uint8_t *data, size_t size);
+
 #ifdef __cplusplus
 }
 #endif

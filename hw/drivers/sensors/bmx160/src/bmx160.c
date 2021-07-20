@@ -119,10 +119,11 @@ int bmx160_create_i2c_sensor_dev(struct bus_i2c_node *node, const char *name,
 }
 #endif
 
-static int bmx160_reg_read(struct bmx160 *bmx160,
-              uint8_t addr,
-              uint8_t *data,
-              size_t size)
+int
+bmx160_reg_read(struct bmx160 *bmx160,
+                uint8_t addr,
+                uint8_t *data,
+                size_t size)
 {
     int err = 0;
     struct sensor_itf *itf = SENSOR_GET_ITF(&bmx160->sensor);
@@ -648,26 +649,30 @@ interpret_fifo(struct bmx160 *bmx160, struct sensor *sensor, uint8_t *buf, int b
 {
     int off = 0;
     uint8_t *tmp;
-    const uint8_t overread_val[] = {0x80,0x80,0x80,0x80,0x80,0x80};
+    const uint8_t overread_val[] = {0x00,0x80,0x00,0x80,0x00,0x80};
+    uint8_t buf_cpy[20];
     struct sensor_accel_data sad;
     struct sensor_gyro_data sgd;
     struct sensor_mag_data smd;
 
     while ((off + 19) < buf_len) {
         tmp = buf + off;
-
-        if (!memcmp(tmp, overread_val, sizeof(overread_val))) {
-            printf("%s:%d: fifo_or\n", __func__, __LINE__);
+        /* Take a copy here as it seems rxbuf can be overwritten!? */
+        memcpy(buf_cpy, tmp, 20);
+        if (!memcmp(buf_cpy, overread_val, sizeof(overread_val))) {
+            break;
         }
 
         /* Todo check for partial fifo downloads */
-        if (!bmx160_calc_acc(bmx160, &tmp[BMX160_REG_ACC_DATA - BMX160_REG_MAG_DATA], &sad)) {
+        if (!bmx160_calc_acc(bmx160, &buf_cpy[BMX160_REG_ACC_DATA - BMX160_REG_MAG_DATA], &sad)) {
             call_listener_cbs(sensor, SENSOR_TYPE_ACCELEROMETER, &sad);
         }
-        if (!bmx160_calc_gyr(bmx160, &tmp[BMX160_REG_GYR_DATA - BMX160_REG_MAG_DATA], &sgd)) {
+
+        if (!bmx160_calc_gyr(bmx160, &buf_cpy[BMX160_REG_GYR_DATA - BMX160_REG_MAG_DATA], &sgd)) {
             call_listener_cbs(sensor, SENSOR_TYPE_GYROSCOPE, &sgd);
         }
-        if (!bmx160_calc_mag(bmx160, &tmp[BMX160_REG_MAG_DATA - BMX160_REG_MAG_DATA], &smd)) {
+
+        if (!bmx160_calc_mag(bmx160, &buf_cpy[BMX160_REG_MAG_DATA - BMX160_REG_MAG_DATA], &smd)) {
             call_listener_cbs(sensor, SENSOR_TYPE_MAGNETIC_FIELD, &smd);
         }
         off += 20;

@@ -6,3 +6,6 @@ syscfg.defs:
     BMX160_RAW_VALUES:
         description: 'Sensor values not compensated/converted. i.e. raw'
         value: 0
+    BMX160_CLI:
+        description: 'Enable sensor CLI'
+        value: 0
