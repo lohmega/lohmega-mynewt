@@ -64,6 +64,7 @@ struct lps22hb {
     struct sensor sensor;
     struct lps22hb_cfg cfg;
     os_time_t last_read_time;
+    uint8_t read_buffer[8];
 };
 
 #if MYNEWT_VAL(BUS_DRIVER_PRESENT)

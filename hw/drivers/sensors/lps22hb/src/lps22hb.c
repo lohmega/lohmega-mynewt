@@ -527,7 +527,7 @@ lps22hb_sensor_read(struct sensor *sensor, sensor_type_t type,
     int rc;
     int32_t temperature;
     uint32_t pressure;
-    uint8_t payload[3];
+    uint8_t *payload;
     struct lps22hb *lhb;
     union {
         struct sensor_press_data spd;
@@ -541,6 +541,7 @@ lps22hb_sensor_read(struct sensor *sensor, sensor_type_t type,
     }
 
     lhb = (struct lps22hb *) SENSOR_GET_DEVICE(sensor);
+    payload = lhb->read_buffer;
 
     /* If sensor is in ONE_SHOT mode, activate it now */
     if (lhb->cfg.output_rate == LPS22HB_OUTPUT_RATE_ONESHOT)
