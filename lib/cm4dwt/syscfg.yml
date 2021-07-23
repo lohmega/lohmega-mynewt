@@ -1,0 +1,4 @@
+syscfg.defs:
+    CM4DWT_ENABLED:
+        description: 'Enabled'
+        value: 1
