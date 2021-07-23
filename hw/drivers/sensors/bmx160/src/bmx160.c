@@ -495,10 +495,11 @@ bmx160_sd_read(struct sensor *sensor,
 
     /* Read the status register first as reading the sensor data
      * clears the corresponding bits in the status reg */
-    err = bmx160_reg_read(bmx160, BMX160_REG_STATUS, &status, 1);
+    err = bmx160_reg_read(bmx160, BMX160_REG_STATUS, bmx160->_rxbuf, 1);
     if (err) {
         return err;
     }
+    status = bmx160->_rxbuf[0];
 
     if ((sensor_type & sensors_all_mot) == sensors_all_mot) {
         /* Read all sensors in a single read */
